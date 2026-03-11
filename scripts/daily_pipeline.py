@@ -40,6 +40,8 @@ from fb_news_fetcher import NewsFetcher
 from tts_generator import VietnameseTTS, clean_script_for_tts
 from avatar_generator import AvatarGenerator
 from video_composer import VideoComposer
+from quality_loop import AgentLoop, ScriptEvaluator, TTSEvaluator, ScriptHistory
+from metrics_tracker import MetricsTracker
 
 # ============================================================================
 # Configuration
@@ -420,17 +422,65 @@ class DailyPipeline:
         return news
 
     def step_script(self, news: str) -> dict:
-        """Step 2: Generate video script."""
-        logger.info("=== STEP 2: Generating script ===")
-        script_data = generate_script(news, self.format_type)
+        """Step 2: Generate video script (with agent loop evaluation).
+
+        Uses Karpathy's Autoresearch pattern:
+        generate → evaluate against program.md → improve → repeat until quality threshold.
+        """
+        logger.info("=== STEP 2: Generating script (agent loop) ===")
+
+        evaluator = ScriptEvaluator()
+        history = ScriptHistory()
+        context = {
+            "news_summary": news,
+            "format_type": self.format_type,
+            "recent_titles": history.get_recent_titles(),
+        }
+
+        def _generate(ctx, feedback=None):
+            news_input = ctx["news_summary"]
+            if feedback:
+                news_input += f"\n\n--- QUALITY FEEDBACK (improve these) ---\n{feedback}"
+            return generate_script(news_input, ctx["format_type"])
+
+        def _evaluate(output, ctx):
+            return evaluator.evaluate(output, ctx)
+
+        loop = AgentLoop(max_retries=3, threshold=7.0, name="script_gen")
+        result = loop.run(_generate, _evaluate, context)
+
+        script_data = result.output
+        if script_data is None:
+            raise RuntimeError("Script generation failed on all attempts")
+
+        # Log evaluation results
+        logger.info(
+            f"Script accepted: score={result.final_score:.1f}/10, "
+            f"attempts={result.attempts}, accepted={result.accepted}"
+        )
+        for i, ev in enumerate(result.eval_history, 1):
+            logger.info(f"  Attempt {i}: {ev.score:.1f}/10 | fails={ev.hard_fail_reasons}")
+
+        # Save script + evaluation metadata
+        script_data["_eval"] = {
+            "score": result.final_score,
+            "attempts": result.attempts,
+            "accepted": result.accepted,
+            "metrics": result.eval_history[-1].metrics if result.eval_history else {},
+        }
+
         script_file = self.work_dir / "script.json"
         script_file.write_text(json.dumps(script_data, ensure_ascii=False, indent=2), encoding="utf-8")
         logger.info(f"Script saved: {script_file}")
         logger.info(f"Title: {script_data['title']}")
+
+        # Record in history for uniqueness tracking
+        history.add(script_data)
+
         return script_data
 
     def step_tts(self, script_text: str) -> str:
-        """Step 3: Generate Vietnamese audio."""
+        """Step 3: Generate Vietnamese audio (with quality check)."""
         logger.info("=== STEP 3: Generating TTS audio ===")
         audio_path = str(self.work_dir / "speech.mp3")
         subtitle_path = str(self.work_dir / "subtitles.srt")
@@ -440,6 +490,16 @@ class DailyPipeline:
         result = tts.generate_sync(clean_text, audio_path, subtitle_path)
 
         logger.info(f"Audio: {result.audio_path} ({result.duration_seconds:.1f}s)")
+
+        # Evaluate TTS output
+        tts_eval = TTSEvaluator.evaluate(
+            audio_path, {"format_type": self.format_type}
+        )
+        if tts_eval.hard_fail_reasons:
+            logger.warning(f"TTS quality issues: {tts_eval.hard_fail_reasons}")
+        else:
+            logger.info(f"TTS quality: {tts_eval.score:.1f}/10")
+
         return audio_path
 
     def step_avatar(self, audio_path: str) -> str:
@@ -634,6 +694,14 @@ class DailyPipeline:
             results["format"] = self.format_type
             results_file = self.work_dir / "pipeline_results.json"
             results_file.write_text(json.dumps(results, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+
+            # Record metrics (closes the feedback loop)
+            try:
+                tracker = MetricsTracker()
+                tracker.record_pipeline_run(results, script_data)
+                logger.info("Pipeline metrics recorded for feedback loop")
+            except Exception as e:
+                logger.warning(f"Failed to record metrics: {e}")
 
             logger.info(f"{'='*60}")
             logger.info(f"PIPELINE COMPLETE")
