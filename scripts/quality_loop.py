@@ -404,6 +404,264 @@ class TTSEvaluator:
 
 
 # ============================================================================
+# News Evaluator (validates fetched news quality)
+# ============================================================================
+
+class NewsEvaluator:
+    """Evaluates fetched news against program.md freshness/quality rules."""
+
+    @staticmethod
+    def evaluate(news_text: str, context: dict) -> EvalResult:
+        """Check news quality: enough items, not empty, sufficient content."""
+        fails = []
+        metrics = {}
+
+        if not news_text or news_text.strip() == "":
+            return EvalResult(score=0, passed=False, hard_fail_reasons=["No news fetched"])
+
+        # Count news items (each starts with "- ")
+        items = [line for line in news_text.strip().split("\n") if line.strip().startswith("- ")]
+        num_items = len(items)
+
+        if num_items < 3:
+            fails.append(f"Only {num_items} news items (min 3 required)")
+        metrics["item_count"] = min(10.0, num_items * 2.5)  # 4+ items = 10
+
+        # Check content length (each item should have substance)
+        avg_len = sum(len(item) for item in items) / max(num_items, 1)
+        if avg_len < 50:
+            fails.append(f"News items too short (avg {avg_len:.0f} chars, min 50)")
+        metrics["content_depth"] = min(10.0, avg_len / 20)  # 200+ chars = 10
+
+        # Check for fallback/generic content
+        fallback_markers = ["không có tin tức", "tin tức ai nổi bật trong tuần"]
+        if any(m in news_text.lower() for m in fallback_markers):
+            fails.append("News appears to be fallback/generic content, not real-time")
+            metrics["freshness"] = 2.0
+        else:
+            metrics["freshness"] = 8.0
+
+        score = sum(metrics.values()) / max(len(metrics), 1)
+        return EvalResult(
+            score=round(score, 1),
+            passed=score >= 6.0 and not fails,
+            metrics=metrics,
+            hard_fail_reasons=fails,
+            feedback="; ".join(fails) if fails else "News quality acceptable.",
+        )
+
+
+# ============================================================================
+# Facebook Post Evaluator
+# ============================================================================
+
+class FacebookPostEvaluator:
+    """Evaluates generated Facebook posts against program.md criteria."""
+
+    def __init__(self):
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            from anthropic import Anthropic
+            api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
+            if not api_key:
+                raise RuntimeError("ANTHROPIC_API_KEY not set")
+            self._client = Anthropic(api_key=api_key)
+        return self._client
+
+    def evaluate(self, post_content: str, context: dict) -> EvalResult:
+        """Evaluate a Facebook post against quality rules."""
+        hard_fails = self._check_hard_constraints(post_content, context)
+        metrics, feedback = self._score_with_llm(post_content, context)
+
+        weighted_score = sum(metrics.values()) / max(len(metrics), 1)
+        if hard_fails:
+            weighted_score = min(weighted_score, 4.0)
+
+        passed = weighted_score >= 7.0 and not hard_fails
+
+        return EvalResult(
+            score=round(weighted_score, 1),
+            passed=passed,
+            metrics=metrics,
+            hard_fail_reasons=hard_fails,
+            feedback=feedback,
+        )
+
+    def _check_hard_constraints(self, post_content: str, context: dict) -> List[str]:
+        """Check hard constraints for Facebook posts."""
+        fails = []
+        text = post_content.strip()
+
+        # Word count (150-250 target, with tolerance)
+        words = len(text.split())
+        if words < 80:
+            fails.append(f"Post too short: {words} words (min ~150)")
+        if words > 400:
+            fails.append(f"Post too long: {words} words (max ~250)")
+
+        # Must have CTA
+        cta_markers = ["dm mình", "comment", "share", "inbox", "liên hệ", "đăng ký"]
+        if not any(m in text.lower() for m in cta_markers):
+            fails.append("Post missing call-to-action (DM/comment/share)")
+
+        # Must have line breaks (readability)
+        if text.count("\n") < 3:
+            fails.append("Post needs more line breaks for readability")
+
+        return fails
+
+    def _score_with_llm(self, post_content: str, context: dict) -> tuple:
+        """Use Claude to score Facebook post quality."""
+        client = self._get_client()
+        pillar = context.get("pillar", "unknown")
+
+        eval_prompt = f"""Evaluate this Vietnamese Facebook post for a business AI automation page.
+
+POST CONTENT:
+{post_content[:1500]}
+
+CONTENT PILLAR: {pillar}
+
+Score each metric from 1-10:
+1. hook_strength: Does the first line grab attention?
+2. business_value: Does it provide clear value for Vietnamese SMB owners?
+3. readability: Easy to scan? Good formatting? Emoji usage?
+4. authenticity: Does it feel genuine, not generic/AI-generated?
+5. cta_effectiveness: Is the call-to-action clear and compelling?
+
+Return ONLY this JSON:
+{{
+    "scores": {{
+        "hook_strength": <1-10>,
+        "business_value": <1-10>,
+        "readability": <1-10>,
+        "authenticity": <1-10>,
+        "cta_effectiveness": <1-10>
+    }},
+    "feedback": "<2-3 sentences of specific improvement suggestions in Vietnamese>"
+}}"""
+
+        try:
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=400,
+                messages=[{"role": "user", "content": eval_prompt}],
+            )
+            raw = response.content[0].text.strip()
+            if raw.startswith("```"):
+                raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
+
+            data = json.loads(raw)
+            metrics = {k: float(v) for k, v in data.get("scores", {}).items()}
+            feedback = data.get("feedback", "")
+            return metrics, feedback
+
+        except Exception as e:
+            logger.warning(f"LLM evaluation failed: {e}. Using default scores.")
+            return {"hook_strength": 5.0, "business_value": 5.0, "readability": 5.0,
+                    "authenticity": 5.0, "cta_effectiveness": 5.0}, "Evaluation failed."
+
+
+# ============================================================================
+# Video Output Evaluator
+# ============================================================================
+
+class VideoEvaluator:
+    """Evaluates final video output against program.md technical specs."""
+
+    @staticmethod
+    def evaluate(video_path: str, context: dict) -> EvalResult:
+        """Check video output for technical quality."""
+        import subprocess
+
+        fails = []
+        metrics = {}
+        video_file = Path(video_path)
+
+        if not video_file.exists():
+            return EvalResult(score=0, passed=False, hard_fail_reasons=["Video file missing"])
+
+        file_size_mb = video_file.stat().st_size / (1024 * 1024)
+        video_format = context.get("video_format", "landscape")  # landscape or vertical
+
+        # File size check
+        max_size = 500 if video_format == "landscape" else 100
+        if file_size_mb > max_size:
+            fails.append(f"Video too large: {file_size_mb:.1f}MB (max {max_size}MB)")
+        if file_size_mb < 1:
+            fails.append(f"Video suspiciously small: {file_size_mb:.1f}MB")
+        metrics["file_size"] = 10.0 if 1 < file_size_mb < max_size else 3.0
+
+        # Get video info via ffprobe
+        try:
+            result = subprocess.run(
+                ["ffprobe", "-v", "quiet", "-print_format", "json",
+                 "-show_format", "-show_streams", str(video_file)],
+                capture_output=True, text=True,
+            )
+            info = json.loads(result.stdout)
+
+            # Duration check
+            duration = float(info["format"]["duration"])
+            audio_duration = context.get("audio_duration", 0)
+            if audio_duration > 0 and abs(duration - audio_duration) > 5:
+                fails.append(
+                    f"Video duration ({duration:.0f}s) doesn't match audio ({audio_duration:.0f}s)"
+                )
+            metrics["duration_match"] = 10.0 if abs(duration - audio_duration) <= 2 else 5.0
+
+            # Resolution check
+            video_stream = next(
+                (s for s in info.get("streams", []) if s["codec_type"] == "video"), None
+            )
+            if video_stream:
+                width = int(video_stream.get("width", 0))
+                height = int(video_stream.get("height", 0))
+
+                if video_format == "landscape":
+                    expected_w, expected_h = 1920, 1080
+                else:
+                    expected_w, expected_h = 1080, 1920
+
+                if width != expected_w or height != expected_h:
+                    fails.append(
+                        f"Resolution {width}x{height} doesn't match expected {expected_w}x{expected_h}"
+                    )
+                metrics["resolution"] = 10.0 if width == expected_w and height == expected_h else 4.0
+
+                # Codec check
+                codec = video_stream.get("codec_name", "")
+                if codec != "h264":
+                    fails.append(f"Video codec is {codec}, expected h264")
+                metrics["codec"] = 10.0 if codec == "h264" else 5.0
+
+            # Audio stream check
+            audio_stream = next(
+                (s for s in info.get("streams", []) if s["codec_type"] == "audio"), None
+            )
+            if not audio_stream:
+                fails.append("Video has no audio stream")
+                metrics["audio"] = 0.0
+            else:
+                metrics["audio"] = 10.0
+
+        except (KeyError, json.JSONDecodeError, FileNotFoundError, StopIteration) as e:
+            fails.append(f"Could not analyze video: {e}")
+            metrics["analysis"] = 3.0
+
+        score = sum(metrics.values()) / max(len(metrics), 1)
+        return EvalResult(
+            score=round(score, 1),
+            passed=score >= 7.0 and not fails,
+            metrics=metrics,
+            hard_fail_reasons=fails,
+            feedback="; ".join(fails) if fails else "Video quality acceptable.",
+        )
+
+
+# ============================================================================
 # Script History (for uniqueness checking)
 # ============================================================================
 

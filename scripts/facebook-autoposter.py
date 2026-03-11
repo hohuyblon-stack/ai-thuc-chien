@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 import config
 from fb_news_fetcher import NewsFetcher, NewsItem
 from fb_content_generator import ContentGenerator, GeneratedPost
+from quality_loop import AgentLoop, FacebookPostEvaluator
 
 # ============================================================================
 # SETUP
@@ -234,16 +235,41 @@ class FacebookAutoPoster:
             logger.info("\n🎯 SELECTING CONTENT PILLAR...")
             pillar = self.select_content_pillar()
 
-            # Step 4: Generate content
-            logger.info("\n✍️  GENERATING CONTENT...")
-            post = self.content_generator.generate_post(news_item, pillar)
+            # Step 4: Generate content (with agent loop quality evaluation)
+            logger.info("\n GENERATING CONTENT (agent loop)...")
 
+            fb_evaluator = FacebookPostEvaluator()
+
+            def _generate_fb(ctx, feedback=None):
+                return self.content_generator.generate_post(
+                    ctx["news_item"], ctx["pillar"], feedback=feedback
+                )
+
+            def _evaluate_fb(output, ctx):
+                if output is None:
+                    from quality_loop import EvalResult
+                    return EvalResult(score=0, passed=False,
+                                      hard_fail_reasons=["Generation returned None"])
+                return fb_evaluator.evaluate(output.content, {"pillar": ctx["pillar"]})
+
+            fb_loop = AgentLoop(max_retries=3, threshold=7.0, name="fb_post_gen")
+            fb_result = fb_loop.run(
+                _generate_fb, _evaluate_fb,
+                {"news_item": news_item, "pillar": pillar},
+            )
+
+            post = fb_result.output
             if not post:
-                logger.error("Content generation failed, aborting")
+                logger.error("Content generation failed on all attempts, aborting")
                 return False
 
+            logger.info(
+                f"Post accepted: score={fb_result.final_score:.1f}/10, "
+                f"attempts={fb_result.attempts}, accepted={fb_result.accepted}"
+            )
+
             # Step 5: Display preview
-            logger.info("\n📋 POST PREVIEW:")
+            logger.info("\n POST PREVIEW:")
             logger.info("-" * 80)
             logger.info(post.content)
             logger.info("-" * 80)

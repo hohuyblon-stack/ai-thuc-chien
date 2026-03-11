@@ -40,7 +40,10 @@ from fb_news_fetcher import NewsFetcher
 from tts_generator import VietnameseTTS, clean_script_for_tts
 from avatar_generator import AvatarGenerator
 from video_composer import VideoComposer
-from quality_loop import AgentLoop, ScriptEvaluator, TTSEvaluator, ScriptHistory
+from quality_loop import (
+    AgentLoop, ScriptEvaluator, TTSEvaluator, NewsEvaluator,
+    VideoEvaluator, ScriptHistory,
+)
 from metrics_tracker import MetricsTracker
 
 # ============================================================================
@@ -413,13 +416,39 @@ class DailyPipeline:
                     logger.debug(f"Skipping {d}: {e}")
 
     def step_news(self) -> str:
-        """Step 1: Fetch AI news."""
-        logger.info("=== STEP 1: Fetching news ===")
-        news = fetch_news()
+        """Step 1: Fetch AI news (with quality validation).
+
+        Retries up to 2 times if news quality is insufficient.
+        """
+        logger.info("=== STEP 1: Fetching news (agent loop) ===")
+
+        best_news = ""
+        best_score = 0.0
+
+        for attempt in range(1, 3):  # Max 2 attempts (news is external, limited control)
+            news = fetch_news()
+            news_eval = NewsEvaluator.evaluate(news, {})
+
+            logger.info(
+                f"  News attempt {attempt}: {news_eval.score:.1f}/10 | "
+                f"fails={news_eval.hard_fail_reasons}"
+            )
+
+            if news_eval.score > best_score:
+                best_score = news_eval.score
+                best_news = news
+
+            if news_eval.passed:
+                break
+
+            logger.warning(f"  News quality low, retrying... ({news_eval.feedback})")
+            import time as _time
+            _time.sleep(2)  # Brief pause before retry
+
         news_file = self.work_dir / "news.txt"
-        news_file.write_text(news, encoding="utf-8")
-        logger.info(f"News saved: {news_file} ({len(news)} chars)")
-        return news
+        news_file.write_text(best_news, encoding="utf-8")
+        logger.info(f"News saved: {news_file} ({len(best_news)} chars, score={best_score:.1f})")
+        return best_news
 
     def step_script(self, news: str) -> dict:
         """Step 2: Generate video script (with agent loop evaluation).
@@ -431,14 +460,33 @@ class DailyPipeline:
 
         evaluator = ScriptEvaluator()
         history = ScriptHistory()
+
+        # Inject engagement feedback from past performance (closes the loop)
+        engagement_context = ""
+        try:
+            tracker = MetricsTracker()
+            engagement_context = tracker.get_feedback_for_generation()
+            if engagement_context:
+                logger.info(f"Injecting engagement feedback: {engagement_context[:100]}...")
+        except Exception as e:
+            logger.debug(f"No engagement feedback available: {e}")
+
         context = {
             "news_summary": news,
             "format_type": self.format_type,
             "recent_titles": history.get_recent_titles(),
+            "engagement_feedback": engagement_context,
         }
 
         def _generate(ctx, feedback=None):
             news_input = ctx["news_summary"]
+            # Add engagement feedback from past performance
+            if ctx.get("engagement_feedback"):
+                news_input += (
+                    f"\n\n--- PAST PERFORMANCE INSIGHTS ---\n"
+                    f"{ctx['engagement_feedback']}\n"
+                    f"Use these insights to create more engaging content."
+                )
             if feedback:
                 news_input += f"\n\n--- QUALITY FEEDBACK (improve these) ---\n{feedback}"
             return generate_script(news_input, ctx["format_type"])
@@ -566,6 +614,15 @@ class DailyPipeline:
             # For short-format YouTube, use vertical as YouTube video too
             if "youtube" in self.platforms and self.format_type == "short":
                 composed["youtube"] = final_vertical
+
+        # Validate composed videos
+        for label, vpath in composed.items():
+            vformat = "vertical" if label == "vertical" else "landscape"
+            vid_eval = VideoEvaluator.evaluate(vpath, {"video_format": vformat})
+            if vid_eval.hard_fail_reasons:
+                logger.warning(f"Video quality issues ({label}): {vid_eval.hard_fail_reasons}")
+            else:
+                logger.info(f"Video quality ({label}): {vid_eval.score:.1f}/10")
 
         return composed
 

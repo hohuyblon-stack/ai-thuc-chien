@@ -28,12 +28,13 @@ class ContentGenerator:
 
     def __init__(self, api_key: str):
         self.client = anthropic.Anthropic(api_key=api_key)
-        self.model = "claude-3-5-sonnet-20241022"
+        self.model = "claude-sonnet-4-20250514"
 
     def generate_post(
         self,
         news_item: NewsItem,
         pillar: str,
+        feedback: Optional[str] = None,
     ) -> Optional[GeneratedPost]:
         """
         Generate a Facebook post from a news item
@@ -41,6 +42,7 @@ class ContentGenerator:
         Args:
             news_item: The news item to generate content from
             pillar: Content pillar type (ai_news_hot_take, automation_wins, tool_reviews, behind_the_scenes)
+            feedback: Optional quality feedback from previous attempt to improve on
 
         Returns:
             GeneratedPost object or None if generation fails
@@ -53,6 +55,12 @@ class ContentGenerator:
 
         # Build the user message with context
         user_message = self._build_user_message(news_item, pillar)
+
+        # Inject quality feedback if this is a retry
+        if feedback:
+            user_message += (
+                f"\n\n--- QUALITY FEEDBACK (improve these) ---\n{feedback}"
+            )
 
         try:
             logger.info(f"Generating {pillar} post from: {news_item.title[:60]}...")
@@ -81,7 +89,7 @@ class ContentGenerator:
                 image_prompt=image_prompt,
             )
 
-            logger.info(f"✓ Generated {pillar} post ({len(post_content)} chars)")
+            logger.info(f"Generated {pillar} post ({len(post_content)} chars)")
             return result
 
         except anthropic.APIError as e:

@@ -91,7 +91,30 @@
 
 ---
 
-## 5. Content Freshness Rules
+## 5. Facebook Post Rules
+
+### Hard Constraints
+- Word count: 80–400 (target 150–250)
+- Must contain CTA (DM/comment/share/inbox)
+- Must have 3+ line breaks for readability
+- Must match the assigned content pillar tone
+
+### Quality Metrics (scored 1-10)
+| Metric | Description |
+|--------|-------------|
+| hook_strength | First line grabs attention |
+| business_value | Clear value for Vietnamese SMB owners |
+| readability | Easy to scan, good formatting, emoji usage |
+| authenticity | Feels genuine, not generic/AI-generated |
+| cta_effectiveness | Call-to-action is clear and compelling |
+
+### Thresholds
+- **Minimum score to accept**: 7.0 / 10
+- **Maximum retry attempts**: 3
+
+---
+
+## 6. Content Freshness Rules
 
 - News must be from last 24 hours (prefer < 12 hours)
 - Never repeat same news story within 7 days
@@ -99,7 +122,7 @@
 
 ---
 
-## 6. Cost Budget
+## 7. Cost Budget
 
 | Resource | Budget per video | Notes |
 |----------|-----------------|-------|
@@ -110,7 +133,7 @@
 
 ---
 
-## 7. Engagement Feedback Loop
+## 8. Engagement Feedback Loop
 
 ### Metrics to Track (post-upload)
 - YouTube: views (24h), watch time %, likes, comments
@@ -129,7 +152,7 @@
 
 ---
 
-## 8. Agent Loop Configuration
+## 9. Agent Loop Configuration
 
 ```
 MAX_RETRIES_PER_STEP = 3
