@@ -30,8 +30,7 @@ from googleapiclient.http import MediaFileUpload
 try:
     from anthropic import Anthropic
 except ImportError:
-    print("ERROR: anthropic package not found. Install with: pip install anthropic")
-    sys.exit(1)
+    Anthropic = None
 
 
 # ============================================================================
@@ -100,7 +99,9 @@ def setup_logging(log_file: Optional[str] = None) -> logging.Logger:
     return logger
 
 
-logger = setup_logging("youtube_uploader.log")
+_log_dir = Path(__file__).parent.parent / "logs"
+_log_dir.mkdir(exist_ok=True)
+logger = setup_logging(str(_log_dir / "youtube_uploader.log"))
 
 
 # ============================================================================
@@ -165,6 +166,8 @@ class ContentGenerator:
     """Uses Claude API to generate video metadata"""
 
     def __init__(self, api_key: Optional[str] = None):
+        if Anthropic is None:
+            raise ImportError("anthropic package not found. Install with: pip install anthropic")
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set")
@@ -197,7 +200,7 @@ Requirements:
 Output ONLY the description, no additional text."""
 
         message = self.client.messages.create(
-            model="claude-opus-4-1-20250805",
+            model="claude-sonnet-4-20250514",
             max_tokens=1024,
             messages=[
                 {"role": "user", "content": prompt}
@@ -232,7 +235,7 @@ Requirements:
 Output ONLY the title, no quotes, no explanation."""
 
         message = self.client.messages.create(
-            model="claude-opus-4-1-20250805",
+            model="claude-sonnet-4-20250514",
             max_tokens=100,
             messages=[
                 {"role": "user", "content": prompt}
@@ -269,7 +272,7 @@ Format: Return as comma-separated list, no quotes.
 Output ONLY the tags."""
 
         message = self.client.messages.create(
-            model="claude-opus-4-1-20250805",
+            model="claude-sonnet-4-20250514",
             max_tokens=200,
             messages=[
                 {"role": "user", "content": prompt}
