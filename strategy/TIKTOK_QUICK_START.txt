@@ -1,0 +1,175 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                   AI THỰC CHIẾN — TIKTOK QUICK START                     ║
+║              Complete Setup in 5 Minutes + Start Creating                ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+LOCATION: /tmp/ai-thuc-chien-brand/
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: SETUP (2 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  cd /tmp/ai-thuc-chien-brand
+  python3 -m venv venv
+  source venv/bin/activate              # macOS/Linux
+  # or: venv\Scripts\activate           # Windows
+  
+  pip install -r requirements.txt
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: API KEYS (2 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. Get Claude API key:
+     → Visit: https://console.anthropic.com
+     → Copy your API key
+     
+  2. Create .env file:
+     cp .env.example .env
+     
+  3. Edit .env and add:
+     CLAUDE_API_KEY=sk-ant-xxxxx...
+     
+  (TikTok API optional for auto-posting - see SETUP_GUIDE.md)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: GENERATE YOUR FIRST SCRIPT (1 minute)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Interactive mode (recommended):
+  
+  python scripts/tiktok-script-generator.py interactive
+  
+  Or direct:
+  
+  python scripts/tiktok-script-generator.py generate \
+    --topic "5 ChatGPT prompts for e-commerce sellers" \
+    --category tutorial \
+    --save
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4: VIEW YOUR SCRIPT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  cat generated_scripts/*.md
+  
+  ✓ Complete script with hook, structure, captions, hashtags
+  ✓ Visual notes for editing
+  ✓ Trending sounds to use
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT YOU NOW HAVE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 STRATEGY & PLANNING
+  • tiktok-strategy.md (21 KB) — Complete TikTok strategy
+  • tiktok-content-calendar.md (21 KB) — 20 video ideas for Month 1
+
+🤖 AUTOMATION TOOLS
+  • tiktok-script-generator.py — Generate Vietnamese scripts
+  • tiktok-poster.py — Automate posting + captions + hashtags
+
+📚 DOCUMENTATION
+  • SETUP_GUIDE.md — Installation & API setup
+  • PROJECT_SUMMARY.md — Complete overview
+  • README.md — Quick reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MOST USEFUL COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Generate Scripts:
+  python scripts/tiktok-script-generator.py interactive
+  python scripts/tiktok-script-generator.py generate \
+    --topic "Your topic" --category tutorial --save
+  python scripts/tiktok-script-generator.py variations \
+    --topic "Your topic" --count 3 --save
+  python scripts/tiktok-script-generator.py batch --file topics.json
+
+Manage Videos:
+  python scripts/tiktok-poster.py add \
+    --video video.mp4 --title "Title" --category tutorial
+  python scripts/tiktok-poster.py status
+  python scripts/tiktok-poster.py process
+  python scripts/tiktok-poster.py gen-caption \
+    --topic "Your topic" --category tutorial
+  python scripts/tiktok-poster.py gen-hashtags \
+    --topic "Your topic" --category tutorial
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTENT CATEGORIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  news        → AI announcements, breaking news, tool releases
+  tutorial    → How-to guides, step-by-step, templates
+  case_study  → Real results, transformations, ROI
+  tool_review → Feature demos, tool comparisons
+  bts         → Behind-the-scenes, day-in-life, relatable
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+YOUR WORKFLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. Read tiktok-strategy.md (understand the strategy)
+     └─ 20 minutes
+
+  2. Review tiktok-content-calendar.md (see 20 video ideas)
+     └─ 10 minutes
+
+  3. Generate first 5 scripts
+     python scripts/tiktok-script-generator.py generate ...
+     └─ 5-10 minutes
+
+  4. Use scripts as filming guides (record videos)
+     └─ 30-60 minutes (depends on video quality)
+
+  5. Add videos to queue
+     python scripts/tiktok-poster.py add ...
+     └─ 2 minutes
+
+  6. Schedule posting
+     python scripts/tiktok-poster.py add ... --schedule "..."
+     └─ 1 minute
+
+  7. Auto-post when due
+     python scripts/tiktok-poster.py process
+     └─ Automatic!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MONTH 1 TARGETS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ✓ 500-1,000 new followers
+  ✓ 100k-150k total video views
+  ✓ 50-60% average completion rate
+  ✓ 3-5% engagement rate
+  ✓ 1-2 videos reaching 50k+ views (viral)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEED HELP?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Installation issues?     → See SETUP_GUIDE.md
+  Understanding strategy?  → Read tiktok-strategy.md
+  Content ideas?          → See tiktok-content-calendar.md
+  API key setup?          → See SETUP_GUIDE.md → "API Setup"
+  Script quality issues?  → Be more specific with topic, try different category
+  TikTok posting error?   → See SETUP_GUIDE.md → "Troubleshooting"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT SECURITY NOTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ✓ Never commit .env file to git
+  ✓ Keep API keys in .env (never hardcode them)
+  ✓ Rotate API keys monthly
+  ✓ Back up posted_videos.json regularly
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ready to build AI Thực Chiến on TikTok? 🚀
+
+Start here:
+  python scripts/tiktok-script-generator.py interactive
+
+Good luck!

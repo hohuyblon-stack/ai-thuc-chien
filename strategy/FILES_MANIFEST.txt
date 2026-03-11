@@ -1,0 +1,359 @@
+================================================================================
+  AI THỰC CHIẾN FACEBOOK AUTOPOSTER - FILES MANIFEST
+================================================================================
+
+Complete list of all files created for the Facebook automation system.
+
+================================================================================
+MAIN APPLICATION SCRIPTS (Core System)
+================================================================================
+
+Location: /tmp/ai-thuc-chien-brand/scripts/
+
+[1] facebook-autoposter.py (13 KB) ⭐ MAIN SCRIPT
+    - Orchestrates entire posting pipeline
+    - Classes: FacebookAutoPoster, PostHistory, FacebookPoster
+    - CLI modes: --run-once, --schedule, --stats
+    - Error handling with retry logic
+    - Status: Executable, ready to use
+    - Usage: python3 facebook-autoposter.py --run-once
+
+[2] fb_news_fetcher.py (6.5 KB)
+    - Fetches news from Tavily API + RSS feeds
+    - Classes: NewsItem, NewsFetcher
+    - Handles news deduplication
+    - Relevance scoring
+    - Status: Module, used by main script
+    - Usage: python3 fb_news_fetcher.py (for testing)
+
+[3] fb_content_generator.py (6.8 KB)
+    - Generates Vietnamese posts with Claude AI
+    - Classes: GeneratedPost, ContentGenerator
+    - 4 specialized system prompts (pillars)
+    - Vietnamese copywriting expertise
+    - Image prompt generation
+    - Status: Module, used by main script
+    - Usage: python3 fb_content_generator.py (for testing)
+
+[4] config.py (6.9 KB)
+    - Centralized configuration management
+    - API credentials from environment
+    - Content pillar weights
+    - Vietnamese system prompts (4 specialized prompts)
+    - News sources configuration
+    - Retry and timeout settings
+    - Status: Configuration module
+    - Usage: Imported by other scripts
+    - Customize: Edit config.py for weights, prompts, sources
+
+[5] setup-cron.sh (8.5 KB) ⭐ SETUP SCRIPT
+    - Automated cron job installation
+    - Pre-flight validation checks
+    - Random time generation (1-4pm Vietnam time)
+    - Log rotation configuration
+    - Health check script creation
+    - Test run capability
+    - Status: Executable, ready to use
+    - Usage: bash setup-cron.sh
+    - Run once: Sets up daily automation
+
+[6] test-setup.sh (8.5 KB) ⭐ VALIDATION SCRIPT
+    - Validates entire system setup
+    - Tests: Python, directories, files, dependencies, config
+    - Comprehensive test suite (20+ checks)
+    - Clear pass/fail reporting
+    - Status: Executable, ready to use
+    - Usage: bash test-setup.sh
+    - Run before: setup-cron.sh
+
+[7] requirements.txt
+    - Python 3.8+ dependencies
+    - Core: anthropic, requests, python-dotenv, tavily-python, feedparser
+    - Optional dev tools: pytest, black, pylint, mypy
+    - Status: Package list
+    - Usage: pip install -r requirements.txt
+
+[8] .env.example
+    - Environment variable template
+    - Placeholders for: FACEBOOK_PAGE_ID, FACEBOOK_ACCESS_TOKEN, CLAUDE_API_KEY, TAVILY_API_KEY
+    - Instructions for each key
+    - Status: Template (copy to .env)
+    - Usage: cp .env.example .env (then edit)
+
+[9] .env (NOT PROVIDED - You create this)
+    - Your actual API keys
+    - File is git-ignored
+    - Created by copying .env.example
+    - Status: Secret configuration
+    - Keep secure: Never commit to git
+
+================================================================================
+DOCUMENTATION FILES
+================================================================================
+
+Location: /tmp/ai-thuc-chien-brand/
+
+[1] FACEBOOK_START_HERE.md ⭐ BEGIN HERE
+    - Quick navigation guide
+    - What you have
+    - 11-minute setup overview
+    - File index
+    - Customization quick guide
+    - Troubleshooting quick reference
+    - Status: Entry point for new users
+    - Length: ~400 lines
+    - Target: First-time users
+
+[2] QUICKSTART.md ⭐ 5-MINUTE SETUP
+    - Step 1: Get API keys (2 min)
+    - Step 2: Install & configure (2 min)
+    - Step 3: Test (1 min)
+    - Step 4: Deploy (2 min)
+    - Monitor & verify
+    - Common issues & fixes
+    - Status: Quick reference guide
+    - Length: ~300 lines
+    - Target: Fast implementation
+
+[3] README.md (11 KB)
+    - Complete documentation
+    - Feature overview
+    - System architecture diagram
+    - Installation guide
+    - API key retrieval instructions
+    - Configuration details
+    - File structure
+    - Troubleshooting section (extensive)
+    - Advanced usage examples
+    - Best practices
+    - Status: Comprehensive reference
+    - Length: ~500 lines
+    - Target: Complete understanding
+
+[4] ARCHITECTURE.md (12 KB)
+    - High-level overview diagram
+    - Module architecture with code examples
+    - Data flow diagram (detailed pipeline)
+    - Content pillar descriptions
+    - Claude API call details
+    - Prompt engineering notes
+    - Error handling strategy (3 levels)
+    - Cron scheduling details
+    - Security considerations
+    - Performance characteristics
+    - Extension points
+    - Status: Technical deep dive
+    - Length: ~400 lines
+    - Target: Technical understanding
+
+[5] SAMPLE_OUTPUTS.md (8 KB)
+    - Sample news input (JSON)
+    - Generated post for each pillar:
+      - AI News + Hot Take example
+      - Automation Wins example
+      - Tool Review example
+      - Behind the Scenes example
+    - Key characteristics of posts
+    - Vietnamese language features
+    - Post structure breakdown
+    - Customization examples
+    - Performance monitoring guide
+    - Status: Examples and reference
+    - Length: ~300 lines
+    - Target: Understanding output quality
+
+[6] DEPLOYMENT_CHECKLIST.md
+    - Pre-deployment setup checklist
+    - Phase 1: Files & Environment (15 min)
+    - Phase 2: API Keys & Configuration (10 min)
+    - Phase 3: Validation (10 min)
+    - Phase 4: Manual Testing (15 min)
+    - Phase 5: Cron Setup (10 min)
+    - Post-deployment verification (7 days)
+    - Production readiness checklist
+    - Ongoing maintenance tasks
+    - Troubleshooting during deployment
+    - Go-live readiness checklist
+    - Sign-off section
+    - Status: Deployment verification
+    - Length: ~400 lines
+    - Target: Production verification
+
+[7] IMPLEMENTATION_SUMMARY.md
+    - What was built (overview)
+    - Project structure
+    - Files created (detailed list)
+    - Key technical details
+    - How to use (4 steps)
+    - Customization points
+    - Cost breakdown
+    - What makes it production-ready
+    - Next steps
+    - Status: System overview
+    - Length: ~350 lines
+    - Target: Understanding what you have
+
+[8] FILES_MANIFEST.txt (THIS FILE)
+    - Complete file listing
+    - File descriptions
+    - File locations
+    - File purposes
+    - File sizes
+    - Usage instructions
+    - Status: Reference manifest
+    - Target: Finding what you need
+
+================================================================================
+GENERATED DIRECTORIES (Auto-Created)
+================================================================================
+
+[1] logs/
+    - Location: /tmp/ai-thuc-chien-brand/logs/
+    - Contents: Daily log files
+    - Files: autoposter_YYYYMMDD.log, autoposter_cron.log
+    - Created: First run
+    - Purpose: Operation tracking
+    - Size: ~2-5 KB per run (~60 KB/month)
+
+[2] data/
+    - Location: /tmp/ai-thuc-chien-brand/data/
+    - Contents: Post history and data
+    - Files: post_history.json
+    - Created: First successful post
+    - Purpose: Deduplication, statistics
+    - Size: ~500 bytes per post (~15 KB/month)
+
+================================================================================
+CONFIGURATION & SETUP FILES
+================================================================================
+
+[1] requirements.txt
+    Size: 756 bytes
+    Purpose: Python package requirements
+    Key packages:
+    - anthropic==0.28.0 (Claude API)
+    - requests==2.31.0 (HTTP client)
+    - python-dotenv==1.0.0 (Environment loading)
+    - tavily-python==0.3.3 (News API)
+    - feedparser==6.0.10 (RSS parsing)
+
+[2] .env.example
+    Size: 1 KB
+    Purpose: Configuration template
+    Contains: Placeholder API keys and settings
+    Usage: cp .env.example .env (then edit)
+
+[3] .env (YOU CREATE THIS)
+    Size: ~100 bytes (after filling in keys)
+    Purpose: Your actual API credentials
+    Contains: FACEBOOK_PAGE_ID, FACEBOOK_ACCESS_TOKEN, CLAUDE_API_KEY, TAVILY_API_KEY
+    Status: Git-ignored (secret)
+
+================================================================================
+FILE DEPENDENCIES & RELATIONSHIPS
+================================================================================
+
+Main Execution Flow:
+  facebook-autoposter.py (main)
+    ├─ Imports: config.py
+    ├─ Uses: fb_news_fetcher.py
+    ├─ Uses: fb_content_generator.py
+    └─ Creates: logs/autoposter_*.log, data/post_history.json
+
+Testing Flow:
+  test-setup.sh (validation)
+    └─ Tests: All Python files, .env, dependencies
+
+Setup Flow:
+  setup-cron.sh (installation)
+    ├─ Validates: .env, dependencies
+    ├─ Creates: Cron job (runs facebook-autoposter.py)
+    ├─ Creates: Health check script
+    └─ Sets: Log rotation
+
+================================================================================
+QUICK FILE REFERENCE
+================================================================================
+
+WHAT TO EDIT:
+  - scripts/.env              (Add your API keys)
+  - scripts/config.py         (Customize weights, prompts, sources)
+
+WHAT TO RUN:
+  - scripts/test-setup.sh     (Validate system - run once)
+  - scripts/setup-cron.sh     (Install automation - run once)
+  - scripts/facebook-autoposter.py  (Run manual post - for testing)
+
+WHAT TO READ:
+  - FACEBOOK_START_HERE.md    (Quick navigation)
+  - QUICKSTART.md             (5-minute setup)
+  - README.md                 (Complete guide)
+  - ARCHITECTURE.md           (How it works)
+
+WHAT TO MONITOR:
+  - logs/autoposter_cron.log  (Daily logs)
+  - data/post_history.json    (Post history)
+  - Facebook page             (Verify posts appear)
+
+================================================================================
+TOTAL DELIVERABLES
+================================================================================
+
+Core Scripts:      6 files (50 KB)
+  - 2 executable scripts (setup, test)
+  - 4 Python modules (main, news, content, config)
+
+Configuration:     2 files (2 KB)
+  - requirements.txt
+  - .env.example
+
+Documentation:     8 files (~25 KB)
+  - Quick start guide
+  - Complete reference
+  - Architecture guide
+  - Sample outputs
+  - Deployment checklist
+  - Implementation summary
+  - This manifest
+
+Generated:         2 directories (auto-created)
+  - logs/ (for daily operation logs)
+  - data/ (for post history)
+
+TOTAL: 18 files + 2 directories, ~80 KB of code and documentation
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Read: FACEBOOK_START_HERE.md (5 min)
+2. Follow: QUICKSTART.md (15 min)
+3. Setup: run setup-cron.sh (5 min)
+4. Verify: DEPLOYMENT_CHECKLIST.md (10 min)
+5. Monitor: Check logs/autoposter_cron.log daily
+
+================================================================================
+QUESTIONS?
+================================================================================
+
+Finding something?
+  → Check FACEBOOK_START_HERE.md for navigation
+
+How do I set it up?
+  → Follow QUICKSTART.md
+
+What's the system architecture?
+  → See ARCHITECTURE.md
+
+What posts will it generate?
+  → See SAMPLE_OUTPUTS.md
+
+Something not working?
+  → Check README.md troubleshooting section
+
+Need to customize?
+  → Edit scripts/config.py (documented)
+
+================================================================================
+END OF MANIFEST
+================================================================================

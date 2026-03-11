@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Cover Export</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800;900&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { margin: 0; padding: 0; overflow: hidden; width: 820px; height: 312px; }
+
+  .cover {
+    width: 820px;
+    height: 312px;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0a1628 0%, #0d2137 30%, #0f2b4a 60%, #061a2e 100%);
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(rgba(0, 163, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 163, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    z-index: 1;
+  }
+  .glow-1 {
+    position: absolute;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(0, 163, 255, 0.15) 0%, transparent 70%);
+    top: -80px; right: -40px;
+    border-radius: 50%; z-index: 1;
+  }
+  .glow-2 {
+    position: absolute;
+    width: 250px; height: 250px;
+    background: radial-gradient(circle, rgba(0, 200, 255, 0.08) 0%, transparent 70%);
+    bottom: -60px; left: 60px;
+    border-radius: 50%; z-index: 1;
+  }
+  .accent-line {
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, transparent 0%, #00a3ff 30%, #00d4ff 50%, #00a3ff 70%, transparent 100%);
+    z-index: 5;
+  }
+  .ai-icon {
+    position: absolute; right: 80px; top: 50%; transform: translateY(-50%);
+    width: 160px; height: 160px; z-index: 4;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ai-icon-ring { position: absolute; border: 2px solid rgba(0, 163, 255, 0.2); border-radius: 50%; }
+  .ai-icon-ring.r1 { width: 160px; height: 160px; }
+  .ai-icon-ring.r2 { width: 120px; height: 120px; border-color: rgba(0, 163, 255, 0.3); }
+  .ai-icon-ring.r3 { width: 80px; height: 80px; border-color: rgba(0, 163, 255, 0.5); }
+  .ai-icon-text {
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 28px;
+    color: #00d4ff; text-shadow: 0 0 20px rgba(0, 212, 255, 0.5); z-index: 5;
+  }
+  .cover-content {
+    position: absolute; left: 60px; top: 50%; transform: translateY(-50%);
+    z-index: 10; max-width: 480px;
+  }
+  .cover-label {
+    font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 600;
+    letter-spacing: 4px; text-transform: uppercase; color: #00a3ff;
+    margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .cover-label::before {
+    content: ''; width: 20px; height: 2px; background: #00a3ff; display: inline-block;
+  }
+  .cover-title {
+    font-family: 'Be Vietnam Pro', sans-serif; font-weight: 900; font-size: 36px;
+    line-height: 1.15; color: #ffffff; margin-bottom: 16px; letter-spacing: -0.5px;
+  }
+  .cover-title .accent { color: #00d4ff; }
+  .cover-tagline {
+    font-size: 15px; font-weight: 500; color: rgba(255, 255, 255, 0.7); line-height: 1.5;
+  }
+  .cover-tagline strong { color: #00d4ff; font-weight: 700; }
+  .bottom-bar {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 40px;
+    background: rgba(0, 0, 0, 0.3); display: flex; align-items: center;
+    padding: 0 60px; z-index: 10; gap: 24px;
+  }
+  .bottom-tag {
+    font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 600;
+    letter-spacing: 1px; color: rgba(255, 255, 255, 0.4); text-transform: uppercase;
+  }
+  .bottom-dot { width: 4px; height: 4px; background: rgba(0, 163, 255, 0.5); border-radius: 50%; }
+</style>
+</head>
+<body>
+<div class="cover" id="cover">
+  <div class="accent-line"></div>
+  <div class="glow-1"></div>
+  <div class="glow-2"></div>
+  <div class="cover-content">
+    <div class="cover-label">AI Automation</div>
+    <div class="cover-title">
+      AI <span class="accent">ứng dụng thực tế</span><br>
+      cho doanh nghiệp Việt
+    </div>
+    <div class="cover-tagline">
+      Tiết kiệm <strong>10 giờ/tuần</strong> với tự động hóa thông minh
+    </div>
+  </div>
+  <div class="ai-icon">
+    <div class="ai-icon-ring r1"></div>
+    <div class="ai-icon-ring r2"></div>
+    <div class="ai-icon-ring r3"></div>
+    <div class="ai-icon-text">AI</div>
+  </div>
+  <div class="bottom-bar">
+    <span class="bottom-tag">Facebook</span>
+    <div class="bottom-dot"></div>
+    <span class="bottom-tag">YouTube</span>
+    <div class="bottom-dot"></div>
+    <span class="bottom-tag">TikTok</span>
+  </div>
+</div>
+</body>
+</html>

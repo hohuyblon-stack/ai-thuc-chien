@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Không làm vẫn có ăn — Brand Assets</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800;900&family=Fredoka:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root {
+    --bright-yellow: #FFD700;
+    --electric-orange: #FF8C00;
+    --lime-green: #ADFF2F;
+    --hot-pink: #FF1493;
+    --sky-blue: #00BFFF;
+    --dark-bg: #1a1a2e;
+    --darker-bg: #0f0f1e;
+    --white: #ffffff;
+    --black: #000000;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--darker-bg);
+    font-family: 'Be Vietnam Pro', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 60px;
+    padding: 60px 40px;
+    color: var(--white);
+  }
+
+  h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: #666;
+    margin-bottom: 16px;
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 700;
+  }
+
+  .asset-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  /* ========== PROFILE PICTURE ========== */
+  .profile-pic {
+    width: 360px;
+    height: 360px;
+    border-radius: 50%;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #FF6B35 0%, #FFD700 100%);
+    box-shadow:
+      0 0 0 8px var(--darker-bg),
+      0 0 0 12px var(--bright-yellow),
+      0 20px 60px rgba(255, 107, 53, 0.4),
+      inset -2px -2px 30px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Animated background gradient */
+  @keyframes gradientShift {
+    0%, 100% { background: linear-gradient(135deg, #FF6B35 0%, #FFD700 100%); }
+    50% { background: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%); }
+  }
+
+  .profile-pic::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 60%),
+      radial-gradient(ellipse at 70% 80%, rgba(0, 0, 0, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  /* Main illustration container */
+  .profile-illustration {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 2;
+    gap: 12px;
+  }
+
+  /* Relaxed figure using emojis and CSS art */
+  .relaxed-figure {
+    font-size: 140px;
+    text-shadow:
+      4px 4px 0px rgba(0, 0, 0, 0.2),
+      -2px -2px 0px rgba(255, 255, 255, 0.3);
+    animation: chill 3s ease-in-out infinite;
+  }
+
+  @keyframes chill {
+    0%, 100% { transform: rotate(0deg) translateY(0); }
+    50% { transform: rotate(2deg) translateY(-4px); }
+  }
+
+  /* Text badges */
+  .profile-badge {
+    background: var(--white);
+    color: #FF6B35;
+    padding: 8px 16px;
+    border-radius: 24px;
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 900;
+    font-size: 20px;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Decorative circles */
+  .circle-accent {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.15;
+    animation: float 4s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px) translateX(0px); }
+    25% { transform: translateY(-10px) translateX(5px); }
+    50% { transform: translateY(-15px) translateX(-5px); }
+    75% { transform: translateY(-5px) translateX(10px); }
+  }
+
+  .circle-1 { width: 60px; height: 60px; background: var(--white); top: 20px; right: 40px; animation-delay: 0s; }
+  .circle-2 { width: 40px; height: 40px; background: var(--white); bottom: 30px; left: 30px; animation-delay: 1s; }
+  .circle-3 { width: 50px; height: 50px; background: var(--white); top: 50%; left: 20px; animation-delay: 2s; }
+
+  /* Size label */
+  .size-label {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 11px;
+    color: #666;
+    margin-top: 8px;
+  }
+
+  /* ========== COVER PHOTO ========== */
+  .cover-photo {
+    width: 820px;
+    height: 312px;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #FF6B35 0%, #FFD700 50%, #ADFF2F 100%);
+    border-radius: 12px;
+    box-shadow:
+      0 0 0 2px var(--bright-yellow),
+      0 30px 80px rgba(255, 107, 53, 0.4);
+  }
+
+  /* Background layer with pattern */
+  .cover-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255, 255, 255, 0.05) 35px, rgba(255, 255, 255, 0.05) 70px),
+      linear-gradient(135deg, #FF6B35 0%, #FFD700 50%, #ADFF2F 100%);
+  }
+
+  /* Highlight shine effect */
+  .cover-shine {
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
+    border-radius: 50%;
+    z-index: 1;
+  }
+
+  /* Robot/AI figure on right side */
+  .cover-ai-figure {
+    position: absolute;
+    right: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 120px;
+    text-shadow:
+      6px 6px 0px rgba(0, 0, 0, 0.2),
+      -3px -3px 0px rgba(255, 255, 255, 0.3);
+    z-index: 3;
+    animation: beepBoop 2s ease-in-out infinite;
+  }
+
+  @keyframes beepBoop {
+    0%, 100% { transform: translateY(-50%) scale(1) rotate(0deg); }
+    25% { transform: translateY(-50%) scale(1.05) rotate(-3deg); }
+    50% { transform: translateY(-50%) scale(1) rotate(0deg); }
+    75% { transform: translateY(-50%) scale(1.05) rotate(3deg); }
+  }
+
+  /* Main content on left */
+  .cover-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    padding: 40px 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    z-index: 2;
+    max-width: 50%;
+  }
+
+  .cover-headline {
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 900;
+    font-size: 54px;
+    line-height: 1.1;
+    color: var(--white);
+    text-shadow:
+      3px 3px 0px rgba(0, 0, 0, 0.2),
+      -2px -2px 0px rgba(255, 255, 255, 0.2);
+    margin-bottom: 8px;
+    letter-spacing: -1px;
+  }
+
+  .cover-headline .highlight {
+    color: #FF1493;
+    text-decoration: underline wavy 3px;
+    text-decoration-color: var(--white);
+    text-underline-offset: 6px;
+  }
+
+  .cover-subtitle {
+    font-family: 'Be Vietnam Pro', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--white);
+    line-height: 1.4;
+    text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.15);
+  }
+
+  .money-emoji {
+    display: inline-block;
+    font-size: 1.1em;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(20deg); }
+  }
+
+  /* Tagline */
+  .cover-tagline {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.85);
+    margin-top: 16px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    width: fit-content;
+    border-radius: 8px;
+  }
+
+  /* Export button container */
+  .export-buttons {
+    display: flex;
+    gap: 16px;
+    margin-top: 24px;
+    justify-content: center;
+  }
+
+  .export-btn {
+    padding: 14px 28px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .export-btn-profile {
+    background: var(--bright-yellow);
+    color: #FF6B35;
+  }
+
+  .export-btn-profile:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 215, 0, 0.4);
+  }
+
+  .export-btn-cover {
+    background: #FF1493;
+    color: var(--white);
+  }
+
+  .export-btn-cover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 20, 147, 0.4);
+  }
+
+  /* Info box */
+  .info-box {
+    max-width: 600px;
+    text-align: center;
+    padding: 32px;
+    border: 2px solid var(--bright-yellow);
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 20, 147, 0.05) 100%);
+    margin-top: 40px;
+  }
+
+  .info-box h3 {
+    font-size: 16px;
+    color: var(--bright-yellow);
+    margin-bottom: 12px;
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 700;
+  }
+
+  .info-box p {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.8;
+  }
+
+  .emoji-divider {
+    font-size: 20px;
+    margin: 20px 0;
+  }
+
+  /* Hidden canvas for exports */
+  canvas {
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- PROFILE PICTURE -->
+<div class="asset-group">
+  <h2>Profile Picture — 180×180</h2>
+  <div class="profile-pic" id="profile">
+    <div class="circle-accent circle-1"></div>
+    <div class="circle-accent circle-2"></div>
+    <div class="circle-accent circle-3"></div>
+    <div class="profile-illustration">
+      <div class="relaxed-figure">😎</div>
+      <div class="profile-badge">KLVCA</div>
+    </div>
+  </div>
+  <div class="size-label">Render at 360px, upload as 180×180</div>
+  <button class="export-btn export-btn-profile" onclick="exportProfile()">📸 Export Profile Pic</button>
+</div>
+
+<!-- COVER PHOTO -->
+<div class="asset-group">
+  <h2>Cover Photo — 820×312</h2>
+  <div class="cover-photo" id="cover">
+    <div class="cover-bg"></div>
+    <div class="cover-shine"></div>
+    <div class="cover-content">
+      <div class="cover-headline">
+        Không làm<br>vẫn có <span class="highlight">ăn</span>
+      </div>
+      <div class="cover-subtitle">
+        AI làm hết. Bạn chỉ cần ngồi đếm tiền <span class="money-emoji">💰</span>
+      </div>
+      <div class="cover-tagline">Tự động hóa thông minh cho doanh nghiệp Việt</div>
+    </div>
+    <div class="cover-ai-figure">🤖</div>
+  </div>
+  <div class="size-label">Exact size: 820×312px</div>
+  <button class="export-btn export-btn-cover" onclick="exportCover()">🎨 Export Cover Photo</button>
+</div>
+
+<!-- INFO BOX -->
+<div class="info-box">
+  <h3>🎯 Brand Identity</h3>
+  <p>
+    <strong>Không làm vẫn có ăn</strong> (Don't work, still get paid)<br>
+    The funny, entertaining side of AI automation for Vietnamese businesses.
+  </p>
+  <div class="emoji-divider">😎 🤖 💰 🚀</div>
+  <p>
+    <small>
+      Use the export buttons to download your assets as PNG files.
+      Upload the profile picture (180×180) and cover photo (820×312) to your Facebook Page.
+    </small>
+  </p>
+</div>
+
+<script>
+function exportProfile() {
+  const element = document.getElementById('profile');
+  const rect = element.getBoundingClientRect();
+
+  html2canvas(element, {
+    width: 360,
+    height: 360,
+    scale: 2,
+    backgroundColor: null,
+    allowTaint: true,
+    useCORS: true
+  }).then(canvas => {
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = 'klvca-profile-180x180.png';
+    link.click();
+  });
+}
+
+function exportCover() {
+  const element = document.getElementById('cover');
+
+  html2canvas(element, {
+    width: 820,
+    height: 312,
+    scale: 2,
+    backgroundColor: null,
+    allowTaint: true,
+    useCORS: true
+  }).then(canvas => {
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = 'klvca-cover-820x312.png';
+    link.click();
+  });
+}
+</script>
+
+</body>
+</html>

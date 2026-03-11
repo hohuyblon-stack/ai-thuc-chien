@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Thực Chiến — Cover Photo</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800;900&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 60px 40px;
+    font-family: 'Be Vietnam Pro', sans-serif;
+    color: #fff;
+    gap: 24px;
+  }
+  h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: #666;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  /* ========== COVER PHOTO 820x312 ========== */
+  .cover {
+    width: 820px;
+    height: 312px;
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #0a1628 0%, #0d2137 30%, #0f2b4a 60%, #061a2e 100%);
+  }
+
+  /* Grid pattern overlay */
+  .cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(rgba(0, 163, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 163, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    z-index: 1;
+  }
+
+  /* Glowing orb top-right */
+  .glow-1 {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(0, 163, 255, 0.15) 0%, transparent 70%);
+    top: -80px;
+    right: -40px;
+    border-radius: 50%;
+    z-index: 1;
+  }
+
+  /* Glowing orb bottom-left */
+  .glow-2 {
+    position: absolute;
+    width: 250px;
+    height: 250px;
+    background: radial-gradient(circle, rgba(0, 200, 255, 0.08) 0%, transparent 70%);
+    bottom: -60px;
+    left: 60px;
+    border-radius: 50%;
+    z-index: 1;
+  }
+
+  /* Accent line */
+  .accent-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent 0%, #00a3ff 30%, #00d4ff 50%, #00a3ff 70%, transparent 100%);
+    z-index: 5;
+  }
+
+  /* Circuit decoration on right */
+  .circuit {
+    position: absolute;
+    right: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+    opacity: 0.6;
+  }
+  .circuit-node {
+    width: 8px;
+    height: 8px;
+    background: #00a3ff;
+    border-radius: 50%;
+    position: absolute;
+    box-shadow: 0 0 12px rgba(0, 163, 255, 0.6);
+  }
+  .circuit-line {
+    position: absolute;
+    background: linear-gradient(180deg, #00a3ff, transparent);
+    width: 2px;
+  }
+
+  /* AI brain icon area */
+  .ai-icon {
+    position: absolute;
+    right: 80px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 160px;
+    height: 160px;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ai-icon-ring {
+    position: absolute;
+    border: 2px solid rgba(0, 163, 255, 0.2);
+    border-radius: 50%;
+  }
+  .ai-icon-ring.r1 { width: 160px; height: 160px; }
+  .ai-icon-ring.r2 { width: 120px; height: 120px; border-color: rgba(0, 163, 255, 0.3); }
+  .ai-icon-ring.r3 { width: 80px; height: 80px; border-color: rgba(0, 163, 255, 0.5); }
+  .ai-icon-text {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 28px;
+    color: #00d4ff;
+    text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+    z-index: 5;
+  }
+
+  /* Content left side */
+  .cover-content {
+    position: absolute;
+    left: 60px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    max-width: 480px;
+  }
+
+  .cover-label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #00a3ff;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .cover-label::before {
+    content: '';
+    width: 20px;
+    height: 2px;
+    background: #00a3ff;
+    display: inline-block;
+  }
+
+  .cover-title {
+    font-family: 'Be Vietnam Pro', sans-serif;
+    font-weight: 900;
+    font-size: 36px;
+    line-height: 1.15;
+    color: #ffffff;
+    margin-bottom: 16px;
+    letter-spacing: -0.5px;
+  }
+  .cover-title .accent {
+    color: #00d4ff;
+  }
+
+  .cover-tagline {
+    font-size: 15px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.5;
+  }
+  .cover-tagline strong {
+    color: #00d4ff;
+    font-weight: 700;
+  }
+
+  /* Bottom bar */
+  .bottom-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    padding: 0 60px;
+    z-index: 10;
+    gap: 24px;
+  }
+  .bottom-tag {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+  }
+  .bottom-dot {
+    width: 4px;
+    height: 4px;
+    background: rgba(0, 163, 255, 0.5);
+    border-radius: 50%;
+  }
+
+  /* Export button */
+  .export-btn {
+    margin-top: 16px;
+    padding: 14px 32px;
+    border: none;
+    border-radius: 8px;
+    background: #00a3ff;
+    color: #fff;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .export-btn:hover {
+    background: #00bfff;
+  }
+  .size-label {
+    font-size: 11px;
+    color: #666;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<h2>Cover Photo — 820 × 312</h2>
+
+<div class="cover" id="cover">
+  <div class="accent-line"></div>
+  <div class="glow-1"></div>
+  <div class="glow-2"></div>
+
+  <!-- Left content -->
+  <div class="cover-content">
+    <div class="cover-label">AI Automation</div>
+    <div class="cover-title">
+      AI <span class="accent">ứng dụng thực tế</span><br>
+      cho doanh nghiệp Việt
+    </div>
+    <div class="cover-tagline">
+      Tiết kiệm <strong>10 giờ/tuần</strong> với tự động hóa thông minh
+    </div>
+  </div>
+
+  <!-- Right: AI icon -->
+  <div class="ai-icon">
+    <div class="ai-icon-ring r1"></div>
+    <div class="ai-icon-ring r2"></div>
+    <div class="ai-icon-ring r3"></div>
+    <div class="ai-icon-text">AI</div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="bottom-bar">
+    <span class="bottom-tag">Facebook</span>
+    <div class="bottom-dot"></div>
+    <span class="bottom-tag">YouTube</span>
+    <div class="bottom-dot"></div>
+    <span class="bottom-tag">TikTok</span>
+  </div>
+</div>
+
+<div class="size-label">Exact size: 820 × 312px</div>
+<button class="export-btn" onclick="exportCover()">Export Cover Photo PNG</button>
+
+<script>
+function exportCover() {
+  const el = document.getElementById('cover');
+  html2canvas(el, {
+    width: 820,
+    height: 312,
+    scale: 2,
+    backgroundColor: null,
+    allowTaint: true,
+    useCORS: true,
+    logging: true
+  }).then(function(canvas) {
+    // Create a download link
+    var a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'ai-thuc-chien-cover-820x312.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }).catch(function(err) {
+    alert('Export failed: ' + err.message);
+  });
+}
+</script>
+
+</body>
+</html>
