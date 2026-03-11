@@ -37,14 +37,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # API Configuration
-CLAUDE_API_KEY = os.getenv('CLAUDE_API_KEY')
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY') or os.getenv('CLAUDE_API_KEY')
 
-if not CLAUDE_API_KEY:
-    logger.error("CLAUDE_API_KEY not found in environment variables")
+if not ANTHROPIC_API_KEY:
+    logger.error("ANTHROPIC_API_KEY (or CLAUDE_API_KEY) not found in environment variables")
     sys.exit(1)
 
 # Initialize Claude client
-claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 # Script output directory
 SCRIPTS_DIR = Path(__file__).parent.parent / "generated_scripts"
@@ -310,7 +310,7 @@ Trả lời CHỈ JSON, không giải thích."""
 
     try:
         message = claude_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             max_tokens=2048,
             messages=[
                 {"role": "user", "content": prompt}

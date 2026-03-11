@@ -2,19 +2,22 @@
 """
 Daily Video Pipeline for AI Thực Chiến
 
-Orchestrates the full automated pipeline:
+Orchestrates the full automated pipeline for YouTube AND TikTok:
 1. Fetch today's AI news (Tavily/RSS)
 2. Generate Vietnamese video script (Claude API)
 3. Generate Vietnamese speech audio (Edge TTS)
 4. Generate talking-head avatar video (Replicate/SadTalker)
-5. Compose final video with overlays + subtitles (FFmpeg)
+5. Compose final video — landscape (YouTube) + vertical (TikTok/Shorts)
 6. Upload to YouTube (YouTube Data API v3)
+7. Upload to TikTok (Content Posting API v2)
 
 Usage:
-    python3 daily_pipeline.py                    # Full pipeline
-    python3 daily_pipeline.py --step tts         # Run single step
-    python3 daily_pipeline.py --dry-run          # Preview without uploading
-    python3 daily_pipeline.py --format short     # Generate Short instead of long-form
+    python3 daily_pipeline.py                              # Full pipeline (YouTube + TikTok)
+    python3 daily_pipeline.py --platform youtube            # YouTube only
+    python3 daily_pipeline.py --platform tiktok             # TikTok only
+    python3 daily_pipeline.py --step tts                    # Resume from TTS step
+    python3 daily_pipeline.py --dry-run                     # Preview without uploading
+    python3 daily_pipeline.py --format short                # Generate Short/vertical only
 """
 
 import os
@@ -24,7 +27,7 @@ import logging
 import argparse
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from dotenv import load_dotenv
 
@@ -52,6 +55,10 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
 (PROJECT_DIR / "assets").mkdir(exist_ok=True)
 
+# Supported platforms
+PLATFORMS = {"youtube", "tiktok", "all"}
+
+
 # ============================================================================
 # Logging
 # ============================================================================
@@ -77,7 +84,10 @@ logger = setup_logging()
 # ============================================================================
 
 def generate_script(news_summary: str, format_type: str = "long") -> dict:
-    """Generate video script from news using Claude API."""
+    """Generate video script from news using Claude API.
+
+    Returns dict with: title, description, tags, script, key_points, tiktok_caption
+    """
     from anthropic import Anthropic
 
     api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
@@ -103,7 +113,7 @@ Cấu trúc (5-8 phút):
 - [5m-6m] KẾT LUẬN: Tổng kết + lời khuyên thực tế
 - [6m-7m] CTA: Subscribe, bấm chuông, comment"""
 
-    prompt = f"""Bạn là scriptwriter cho kênh YouTube "AI Thực Chiến" — kênh tiếng Việt về AI & Automation cho chủ doanh nghiệp, bán hàng online, solopreneur.
+    prompt = f"""Bạn là scriptwriter cho kênh "AI Thực Chiến" — kênh tiếng Việt về AI & Automation cho chủ doanh nghiệp, bán hàng online, solopreneur.
 
 Dựa trên tin tức AI hôm nay, viết một VIDEO SCRIPT hoàn chỉnh ({duration_guide}).
 
@@ -126,7 +136,9 @@ Trả về JSON:
     "description": "Mô tả YouTube (150-300 từ, có hashtags)",
     "tags": ["tag1", "tag2", "..."],
     "script": "Toàn bộ nội dung script để đọc (chỉ text thuần, không có stage directions)",
-    "key_points": ["điểm 1", "điểm 2", "điểm 3"]
+    "key_points": ["điểm 1", "điểm 2", "điểm 3"],
+    "tiktok_caption": "Caption TikTok ngắn (100-200 ký tự, có emoji, hook + CTA)",
+    "tiktok_hashtags": ["#AIThựcChiến", "#AI", "#Automation", "#ChatGPT", "#BusinessVN"]
 }}
 
 CHỈ trả về JSON, không có text khác."""
@@ -243,19 +255,116 @@ def upload_to_youtube(
 
 
 # ============================================================================
+# TikTok Upload
+# ============================================================================
+
+def upload_to_tiktok(
+    video_path: str,
+    caption: str,
+    hashtags: List[str],
+) -> Optional[str]:
+    """Upload video to TikTok using Content Posting API v2.
+
+    Returns publish_id if successful, None if failed.
+    """
+    access_token = os.getenv("TIKTOK_ACCESS_TOKEN")
+    if not access_token:
+        logger.error("TIKTOK_ACCESS_TOKEN not set — skipping TikTok upload")
+        return None
+
+    try:
+        from pathlib import Path as _Path
+        import requests
+
+        api_base = "https://open.tiktokapis.com/v2"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=UTF-8",
+        }
+
+        file_size = _Path(video_path).stat().st_size
+        full_caption = caption
+        if hashtags:
+            full_caption += "\n\n" + " ".join(hashtags)
+
+        # Step 1: Init upload
+        init_payload = {
+            "post_info": {
+                "title": full_caption[:150],
+                "description": full_caption,
+                "privacy_level": "SELF_ONLY",
+                "disable_comment": False,
+                "disable_duet": False,
+                "disable_stitch": False,
+            },
+            "source_info": {
+                "source": "FILE_UPLOAD",
+                "video_size": file_size,
+            },
+        }
+
+        init_resp = requests.post(
+            f"{api_base}/post/publish/video/init/",
+            headers=headers,
+            json=init_payload,
+            timeout=30,
+        )
+
+        if init_resp.status_code != 200:
+            logger.error(f"TikTok init failed: {init_resp.status_code} - {init_resp.text}")
+            return None
+
+        init_data = init_resp.json()
+        if init_data.get("error", {}).get("code") != "ok":
+            logger.error(f"TikTok init error: {init_data}")
+            return None
+
+        upload_url = init_data["data"]["upload_url"]
+        publish_id = init_data["data"].get("publish_id", "")
+
+        # Step 2: Upload video file
+        with open(video_path, "rb") as f:
+            video_data = f.read()
+
+        upload_resp = requests.put(
+            upload_url,
+            headers={"Content-Type": "video/mp4", "Content-Length": str(file_size)},
+            data=video_data,
+            timeout=300,
+        )
+
+        if upload_resp.status_code not in [200, 201]:
+            logger.error(f"TikTok upload failed: {upload_resp.status_code}")
+            return None
+
+        logger.info(f"Uploaded to TikTok: publish_id={publish_id}")
+        return publish_id
+
+    except Exception as e:
+        logger.error(f"TikTok upload error: {e}")
+        return None
+
+
+# ============================================================================
 # Pipeline Steps
 # ============================================================================
 
 class DailyPipeline:
-    """Orchestrates the full daily video pipeline."""
+    """Orchestrates the full daily video pipeline for YouTube + TikTok."""
 
-    def __init__(self, format_type: str = "long", dry_run: bool = False):
+    def __init__(
+        self,
+        format_type: str = "long",
+        dry_run: bool = False,
+        platforms: Optional[List[str]] = None,
+    ):
         self.format_type = format_type
         self.dry_run = dry_run
+        self.platforms = set(platforms or ["youtube", "tiktok"])
         self.today = datetime.now().strftime("%Y%m%d")
         self.work_dir = OUTPUT_DIR / self.today
         self.work_dir.mkdir(exist_ok=True)
-        logger.info(f"Pipeline initialized: format={format_type}, dry_run={dry_run}")
+        logger.info(f"Pipeline initialized: format={format_type}, platforms={self.platforms}, dry_run={dry_run}")
         logger.info(f"Work directory: {self.work_dir}")
 
     def step_news(self) -> str:
@@ -316,28 +425,53 @@ class DailyPipeline:
 
     def step_compose(
         self, avatar_video: str, title: str, subtitle_path: Optional[str] = None
-    ) -> str:
-        """Step 5: Compose final video."""
-        logger.info("=== STEP 5: Composing final video ===")
-        final_video = str(self.work_dir / "final.mp4")
-
+    ) -> dict:
+        """Step 5: Compose final videos — landscape + vertical as needed."""
+        logger.info("=== STEP 5: Composing final video(s) ===")
         composer = VideoComposer()
-        result = composer.compose(
-            avatar_video=avatar_video,
-            output_path=final_video,
-            subtitles=subtitle_path,
-            title_text=title,
+        composed = {}
+
+        # Landscape video for YouTube long-form
+        if "youtube" in self.platforms and self.format_type == "long":
+            final_landscape = str(self.work_dir / "final_youtube.mp4")
+            result = composer.compose(
+                avatar_video=avatar_video,
+                output_path=final_landscape,
+                subtitles=subtitle_path,
+                title_text=title,
+            )
+            composed["youtube"] = final_landscape
+            logger.info(f"YouTube video: {result.output_path} ({result.duration_seconds:.1f}s, {result.file_size_mb:.1f}MB)")
+
+        # Vertical video for TikTok / YouTube Shorts
+        needs_vertical = (
+            "tiktok" in self.platforms
+            or self.format_type == "short"
+            or ("youtube" in self.platforms and self.format_type == "short")
         )
+        if needs_vertical:
+            final_vertical = str(self.work_dir / "final_vertical.mp4")
+            result = composer.compose_vertical(
+                avatar_video=avatar_video,
+                output_path=final_vertical,
+                subtitles=subtitle_path,
+                title_text=title,
+            )
+            composed["vertical"] = final_vertical
+            logger.info(f"Vertical video: {result.output_path} ({result.duration_seconds:.1f}s, {result.file_size_mb:.1f}MB)")
 
-        logger.info(f"Final video: {result.output_path} ({result.duration_seconds:.1f}s, {result.file_size_mb:.1f}MB)")
-        return final_video
+            # For short-format YouTube, use vertical as YouTube video too
+            if "youtube" in self.platforms and self.format_type == "short":
+                composed["youtube"] = final_vertical
 
-    def step_upload(self, video_path: str, script_data: dict) -> Optional[str]:
-        """Step 6: Upload to YouTube."""
-        logger.info("=== STEP 6: Uploading to YouTube ===")
+        return composed
+
+    def step_upload_youtube(self, video_path: str, script_data: dict) -> Optional[str]:
+        """Step 6a: Upload to YouTube."""
+        logger.info("=== STEP 6a: Uploading to YouTube ===")
 
         if self.dry_run:
-            logger.info("DRY RUN — skipping upload")
+            logger.info("DRY RUN — skipping YouTube upload")
             return None
 
         video_id = upload_to_youtube(
@@ -348,10 +482,29 @@ class DailyPipeline:
         )
         return video_id
 
+    def step_upload_tiktok(self, video_path: str, script_data: dict) -> Optional[str]:
+        """Step 6b: Upload to TikTok."""
+        logger.info("=== STEP 6b: Uploading to TikTok ===")
+
+        if self.dry_run:
+            logger.info("DRY RUN — skipping TikTok upload")
+            return None
+
+        caption = script_data.get("tiktok_caption", script_data["title"])
+        hashtags = script_data.get("tiktok_hashtags", ["#AIThựcChiến", "#AI", "#Automation"])
+
+        publish_id = upload_to_tiktok(
+            video_path=video_path,
+            caption=caption,
+            hashtags=hashtags,
+        )
+        return publish_id
+
     def run(self, start_step: Optional[str] = None) -> dict:
         """Run the full pipeline (or from a specific step)."""
         logger.info(f"{'='*60}")
         logger.info(f"DAILY PIPELINE START: {self.today}")
+        logger.info(f"Platforms: {', '.join(self.platforms)}")
         logger.info(f"{'='*60}")
 
         results = {}
@@ -387,30 +540,50 @@ class DailyPipeline:
             else:
                 avatar_video = str(self.work_dir / "avatar.mp4")
 
-            # Step 5: Compose
+            # Step 5: Compose (landscape + vertical)
             if not start_step or start_step in ("news", "script", "tts", "avatar", "compose"):
                 subtitle_path = str(self.work_dir / "subtitles.srt")
-                final_video = self.step_compose(
+                composed = self.step_compose(
                     avatar_video,
                     script_data["title"],
                     subtitle_path if Path(subtitle_path).exists() else None,
                 )
-                results["final_video"] = final_video
+                results["composed_videos"] = composed
             else:
-                final_video = str(self.work_dir / "final.mp4")
+                composed = {}
+                yt_path = self.work_dir / "final_youtube.mp4"
+                vert_path = self.work_dir / "final_vertical.mp4"
+                if yt_path.exists():
+                    composed["youtube"] = str(yt_path)
+                if vert_path.exists():
+                    composed["vertical"] = str(vert_path)
 
-            # Step 6: Upload
-            video_id = self.step_upload(final_video, script_data)
-            results["youtube_id"] = video_id
+            # Step 6a: Upload to YouTube
+            if "youtube" in self.platforms and "youtube" in composed:
+                video_id = self.step_upload_youtube(composed["youtube"], script_data)
+                results["youtube_id"] = video_id
+                if video_id:
+                    results["youtube_url"] = f"https://youtube.com/watch?v={video_id}"
+
+            # Step 6b: Upload to TikTok
+            if "tiktok" in self.platforms and "vertical" in composed:
+                publish_id = self.step_upload_tiktok(composed["vertical"], script_data)
+                results["tiktok_publish_id"] = publish_id
 
             # Save pipeline results
             results["status"] = "success"
             results["timestamp"] = datetime.now().isoformat()
+            results["platforms"] = list(self.platforms)
+            results["format"] = self.format_type
             results_file = self.work_dir / "pipeline_results.json"
             results_file.write_text(json.dumps(results, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
 
             logger.info(f"{'='*60}")
-            logger.info(f"PIPELINE COMPLETE: {results.get('youtube_id', 'dry-run')}")
+            logger.info(f"PIPELINE COMPLETE")
+            if results.get("youtube_id"):
+                logger.info(f"  YouTube: https://youtube.com/watch?v={results['youtube_id']}")
+            if results.get("tiktok_publish_id"):
+                logger.info(f"  TikTok publish_id: {results['tiktok_publish_id']}")
             logger.info(f"{'='*60}")
 
         except Exception as e:
@@ -427,7 +600,7 @@ class DailyPipeline:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Daily video pipeline for AI Thực Chiến",
+        description="Daily video pipeline for AI Thực Chiến (YouTube + TikTok)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Steps (in order):
@@ -435,33 +608,49 @@ Steps (in order):
   script    Generate Vietnamese video script (Claude API)
   tts       Generate speech audio (Edge TTS)
   avatar    Generate talking-head video (Replicate/SadTalker)
-  compose   Compose final video (FFmpeg)
-  upload    Upload to YouTube
+  compose   Compose final video(s) — landscape + vertical (FFmpeg)
+  upload    Upload to YouTube + TikTok
 
 Examples:
-  python3 daily_pipeline.py                     # Full pipeline
-  python3 daily_pipeline.py --dry-run           # Preview, no upload
-  python3 daily_pipeline.py --step tts          # Resume from TTS step
-  python3 daily_pipeline.py --format short      # Generate Short video
+  python3 daily_pipeline.py                              # Full pipeline, all platforms
+  python3 daily_pipeline.py --platform youtube            # YouTube only
+  python3 daily_pipeline.py --platform tiktok             # TikTok only
+  python3 daily_pipeline.py --dry-run                     # Preview, no upload
+  python3 daily_pipeline.py --step tts                    # Resume from TTS step
+  python3 daily_pipeline.py --format short                # Generate Short/vertical video
+  python3 daily_pipeline.py --format short --platform youtube  # YouTube Shorts only
         """,
     )
     parser.add_argument("--step", choices=["news", "script", "tts", "avatar", "compose", "upload"],
                         help="Start from specific step (uses cached data for earlier steps)")
     parser.add_argument("--format", choices=["short", "long"], default="long",
                         help="Video format (default: long)")
+    parser.add_argument("--platform", choices=["youtube", "tiktok", "all"], default="all",
+                        help="Target platform(s) (default: all)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Run pipeline without uploading")
 
     args = parser.parse_args()
 
-    pipeline = DailyPipeline(format_type=args.format, dry_run=args.dry_run)
+    if args.platform == "all":
+        platforms = ["youtube", "tiktok"]
+    else:
+        platforms = [args.platform]
+
+    pipeline = DailyPipeline(
+        format_type=args.format,
+        dry_run=args.dry_run,
+        platforms=platforms,
+    )
     results = pipeline.run(start_step=args.step)
 
     if results.get("status") == "success":
         print(f"\nPipeline completed successfully!")
-        if results.get("youtube_id"):
-            print(f"YouTube: https://youtube.com/watch?v={results['youtube_id']}")
-        print(f"Output: {pipeline.work_dir}")
+        if results.get("youtube_url"):
+            print(f"  YouTube: {results['youtube_url']}")
+        if results.get("tiktok_publish_id"):
+            print(f"  TikTok: publish_id={results['tiktok_publish_id']}")
+        print(f"  Output: {pipeline.work_dir}")
     else:
         print(f"\nPipeline failed: {results.get('error', 'unknown')}")
         sys.exit(1)

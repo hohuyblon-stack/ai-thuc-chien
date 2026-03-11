@@ -87,49 +87,61 @@ mkdir -p "$DATA_DIR"
 # ============================================================================
 
 log_info ""
-log_info "Setting up cron job..."
+log_info "Setting up cron jobs..."
 
-# Generate a random time within 1-4pm Vietnam time (13:00-16:00)
-# Vietnam time = UTC+7
-# We'll randomize the minute to avoid exact hour boundaries
-RANDOM_HOUR=$((13 + RANDOM % 3))  # 13, 14, or 15 (1pm, 2pm, 3pm)
-RANDOM_MINUTE=$((RANDOM % 60))    # 0-59
-
-log_info "Generated random posting time: ${RANDOM_HOUR}:${RANDOM_MINUTE} Vietnam time (GMT+7)"
-
-# Create the cron job command
-# Using absolute paths for security
 VENV_PYTHON="$PROJECT_DIR/venv/bin/python3"
+PIPELINE_SCRIPT="$SCRIPT_DIR/daily_pipeline.py"
 AUTOPOSTER_SCRIPT="$SCRIPT_DIR/facebook-autoposter.py"
-LOG_FILE="$LOG_DIR/autoposter_cron.log"
 
-# The cron command with error handling and logging
-CRON_COMMAND="$RANDOM_HOUR $RANDOM_MINUTE * * * cd $SCRIPT_DIR && . $ENV_FILE && $VENV_PYTHON $AUTOPOSTER_SCRIPT --run-once >> $LOG_FILE 2>&1 || echo \"[ERROR] Autoposter failed at \$(date)\" >> $LOG_FILE"
+# --- Facebook Autoposter (1-4pm Vietnam time) ---
+FB_HOUR=$((13 + RANDOM % 3))
+FB_MINUTE=$((RANDOM % 60))
+FB_LOG="$LOG_DIR/autoposter_cron.log"
+FB_CRON="$FB_HOUR $FB_MINUTE * * * cd $SCRIPT_DIR && . $ENV_FILE && $VENV_PYTHON $AUTOPOSTER_SCRIPT --run-once >> $FB_LOG 2>&1 || echo \"[ERROR] FB Autoposter failed at \$(date)\" >> $FB_LOG"
 
-log_info "Cron command:"
-echo "  $RANDOM_HOUR $RANDOM_MINUTE * * * cd $SCRIPT_DIR && . $ENV_FILE && $VENV_PYTHON $AUTOPOSTER_SCRIPT --run-once >> $LOG_FILE 2>&1"
+log_info "Facebook: ${FB_HOUR}:$(printf '%02d' $FB_MINUTE) Vietnam time"
 
-# Check if job already exists
-EXISTING_CRON=$(crontab -l 2>/dev/null | grep -c "facebook-autoposter.py" || echo 0)
+# --- YouTube Daily Pipeline (8-10am Vietnam time — morning content) ---
+YT_HOUR=$((8 + RANDOM % 2))
+YT_MINUTE=$((RANDOM % 60))
+YT_LOG="$LOG_DIR/youtube_pipeline_cron.log"
+YT_CRON="$YT_HOUR $YT_MINUTE * * * cd $SCRIPT_DIR && . $ENV_FILE && $VENV_PYTHON $PIPELINE_SCRIPT --platform youtube --format long >> $YT_LOG 2>&1 || echo \"[ERROR] YouTube pipeline failed at \$(date)\" >> $YT_LOG"
+
+log_info "YouTube:  ${YT_HOUR}:$(printf '%02d' $YT_MINUTE) Vietnam time (long-form)"
+
+# --- TikTok Daily Pipeline (11am-1pm Vietnam time — lunch time content) ---
+TT_HOUR=$((11 + RANDOM % 2))
+TT_MINUTE=$((RANDOM % 60))
+TT_LOG="$LOG_DIR/tiktok_pipeline_cron.log"
+TT_CRON="$TT_HOUR $TT_MINUTE * * * cd $SCRIPT_DIR && . $ENV_FILE && $VENV_PYTHON $PIPELINE_SCRIPT --platform tiktok --format short >> $TT_LOG 2>&1 || echo \"[ERROR] TikTok pipeline failed at \$(date)\" >> $TT_LOG"
+
+log_info "TikTok:   ${TT_HOUR}:$(printf '%02d' $TT_MINUTE) Vietnam time (short-form)"
+
+# Remove existing AI Thuc Chien cron jobs
+EXISTING_CRON=$(crontab -l 2>/dev/null | grep -c -E "(facebook-autoposter|daily_pipeline)" || echo 0)
 
 if [ "$EXISTING_CRON" -gt 0 ]; then
-    log_warning "Existing autoposter cron job found"
-    read -p "Do you want to replace it? (y/n) " -n 1 -r
+    log_warning "Existing cron jobs found ($EXISTING_CRON)"
+    read -p "Do you want to replace them? (y/n) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        # Remove existing job
-        crontab -l 2>/dev/null | grep -v "facebook-autoposter.py" | crontab -
-        log_success "Removed existing cron job"
+        crontab -l 2>/dev/null | grep -v -E "(facebook-autoposter|daily_pipeline)" | crontab -
+        log_success "Removed existing cron jobs"
     else
-        log_info "Keeping existing cron job"
+        log_info "Keeping existing cron jobs"
         exit 0
     fi
 fi
 
-# Add new cron job
-(crontab -l 2>/dev/null || echo ""; echo "$CRON_COMMAND") | crontab -
+# Add all cron jobs
+(crontab -l 2>/dev/null || echo ""
+echo "# --- AI Thuc Chien Automation ---"
+echo "$FB_CRON"
+echo "$YT_CRON"
+echo "$TT_CRON"
+) | crontab -
 
-log_success "Cron job installed"
+log_success "All cron jobs installed (Facebook + YouTube + TikTok)"
 
 # ============================================================================
 # LOG ROTATION SETUP
@@ -192,11 +204,15 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 LOG_DIR="$PROJECT_DIR/logs"
 DATA_DIR="$PROJECT_DIR/data"
 
-# Check if cron job is installed
-if crontab -l 2>/dev/null | grep -q "facebook-autoposter.py"; then
-    echo "✓ Cron job is installed"
+# Check if cron jobs are installed
+FB_CRON=$(crontab -l 2>/dev/null | grep -c "facebook-autoposter" || echo 0)
+YT_CRON=$(crontab -l 2>/dev/null | grep -c "daily_pipeline.*youtube" || echo 0)
+TT_CRON=$(crontab -l 2>/dev/null | grep -c "daily_pipeline.*tiktok" || echo 0)
+echo "Cron jobs: Facebook=$FB_CRON YouTube=$YT_CRON TikTok=$TT_CRON"
+if [ "$FB_CRON" -gt 0 ] && [ "$YT_CRON" -gt 0 ] && [ "$TT_CRON" -gt 0 ]; then
+    echo "✓ All cron jobs installed"
 else
-    echo "✗ Cron job is NOT installed"
+    echo "⚠ Some cron jobs missing — run setup-cron.sh"
 fi
 
 # Check logs
@@ -262,28 +278,27 @@ log_info "=========================================="
 log_success "SETUP COMPLETED!"
 log_info "=========================================="
 echo ""
-echo "📋 Configuration Summary:"
+echo "Configuration Summary:"
 echo "  Project directory: $PROJECT_DIR"
 echo "  Scripts directory: $SCRIPT_DIR"
 echo "  Logs directory: $LOG_DIR"
 echo "  Data directory: $DATA_DIR"
-echo "  Log file: $LOG_FILE"
 echo ""
-echo "🕐 Posting Schedule:"
-echo "  Time: ${RANDOM_HOUR}:${RANDOM_MINUTE} Vietnam time (GMT+7) daily"
-echo "  Command: Check crontab with 'crontab -l'"
+echo "Posting Schedule (Vietnam time, GMT+7):"
+echo "  YouTube:  ${YT_HOUR}:$(printf '%02d' $YT_MINUTE) daily (long-form)"
+echo "  TikTok:   ${TT_HOUR}:$(printf '%02d' $TT_MINUTE) daily (short-form)"
+echo "  Facebook: ${FB_HOUR}:$(printf '%02d' $FB_MINUTE) daily (text post)"
+echo "  Check crontab: crontab -l"
 echo ""
-echo "📊 Monitor your posts:"
-echo "  View logs: tail -f $LOG_FILE"
-echo "  Health check: bash $HEALTH_CHECK_SCRIPT"
-echo "  View stats: $VENV_PYTHON $AUTOPOSTER_SCRIPT --stats"
+echo "Monitor:"
+echo "  YouTube logs:  tail -f $LOG_DIR/youtube_pipeline_cron.log"
+echo "  TikTok logs:   tail -f $LOG_DIR/tiktok_pipeline_cron.log"
+echo "  Facebook logs: tail -f $LOG_DIR/autoposter_cron.log"
+echo "  Health check:  bash $HEALTH_CHECK_SCRIPT"
 echo ""
-echo "🔧 Troubleshooting:"
-echo "  Check cron logs: log show --predicate 'process == \"cron\"' --last 1h (macOS)"
-echo "  Check .env file: cat $SCRIPT_DIR/.env"
-echo ""
-echo "Next steps:"
-echo "  1. Review the log file: tail -f $LOG_FILE"
-echo "  2. Run health check: bash $HEALTH_CHECK_SCRIPT"
-echo "  3. Your posts will be published daily at ${RANDOM_HOUR}:${RANDOM_MINUTE} Vietnam time"
+echo "Manual runs:"
+echo "  Full pipeline:   $VENV_PYTHON $PIPELINE_SCRIPT --dry-run"
+echo "  YouTube only:    $VENV_PYTHON $PIPELINE_SCRIPT --platform youtube --dry-run"
+echo "  TikTok only:     $VENV_PYTHON $PIPELINE_SCRIPT --platform tiktok --format short --dry-run"
+echo "  Facebook only:   $VENV_PYTHON $AUTOPOSTER_SCRIPT --run-once"
 echo ""

@@ -1,3 +1,25 @@
-anthropic==0.25.0
-requests==2.31.0
-python-dotenv==1.0.0
+# AI Thực Chiến — Full Pipeline Requirements
+# Install with: pip install -r requirements.txt
+
+# Core
+python-dotenv>=1.0.0          # Environment variable management
+requests>=2.31.0              # HTTP client
+anthropic>=0.40.0             # Claude API client
+
+# News fetching
+tavily-python>=0.3.3          # Tavily search API
+feedparser>=6.0.10            # RSS feed parsing
+
+# TTS (Text-to-Speech)
+edge-tts>=6.1.0               # Microsoft Edge TTS (free Vietnamese voices)
+
+# Avatar generation
+replicate>=0.25.0             # Replicate API (SadTalker model)
+
+# YouTube upload
+google-api-python-client>=2.100.0  # YouTube Data API v3
+google-auth-oauthlib>=1.1.0   # Google OAuth2
+
+# Utilities
+python-dateutil>=2.8.2        # Date utilities
+pytz>=2024.1                  # Timezone support

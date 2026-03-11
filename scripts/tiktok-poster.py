@@ -38,22 +38,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # API Configuration
-TIKTOK_API_BASE = "https://open.tiktokapis.com/v1"
+TIKTOK_API_BASE = "https://open.tiktokapis.com/v2"
 TIKTOK_ACCESS_TOKEN = os.getenv('TIKTOK_ACCESS_TOKEN')
 TIKTOK_CLIENT_KEY = os.getenv('TIKTOK_CLIENT_KEY')
 TIKTOK_CLIENT_SECRET = os.getenv('TIKTOK_CLIENT_SECRET')
-CLAUDE_API_KEY = os.getenv('CLAUDE_API_KEY')
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY') or os.getenv('CLAUDE_API_KEY')
 
-# Validation
-if not TIKTOK_ACCESS_TOKEN:
-    logger.error("TIKTOK_ACCESS_TOKEN not found in environment variables")
-    sys.exit(1)
-if not CLAUDE_API_KEY:
-    logger.error("CLAUDE_API_KEY not found in environment variables")
-    sys.exit(1)
+# Validation (lazy — don't exit at import time so pipeline can import selectively)
+def _validate_tiktok_config():
+    if not TIKTOK_ACCESS_TOKEN:
+        raise RuntimeError("TIKTOK_ACCESS_TOKEN not found in environment variables")
+    if not ANTHROPIC_API_KEY:
+        raise RuntimeError("ANTHROPIC_API_KEY (or CLAUDE_API_KEY) not found in environment variables")
 
-# Initialize Claude client
-claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+# Initialize Claude client (lazy)
+def _get_claude_client():
+    _validate_tiktok_config()
+    return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+claude_client = None  # initialized on first use
 
 # Content queue file
 QUEUE_FILE = Path(__file__).parent.parent / "content_queue.json"
@@ -167,8 +170,11 @@ Requirements:
 Chỉ trả lời caption, không giải thích."""
 
     try:
+        global claude_client
+        if claude_client is None:
+            claude_client = _get_claude_client()
         message = claude_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             max_tokens=256,
             messages=[
                 {"role": "user", "content": prompt}
@@ -212,8 +218,11 @@ Total: 10-12 hashtags
 Return ONLY hashtags in list format, mỗi dòng 1 hashtag (có # prefix)."""
 
     try:
+        global claude_client
+        if claude_client is None:
+            claude_client = _get_claude_client()
         message = claude_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             max_tokens=256,
             messages=[
                 {"role": "user", "content": prompt}
@@ -234,13 +243,22 @@ Return ONLY hashtags in list format, mỗi dòng 1 hashtag (có # prefix)."""
 # ============================================================================
 
 class TikTokAPI:
-    """Wrapper for TikTok Content Posting API."""
+    """Wrapper for TikTok Content Posting API v2.
+
+    Uses the proper 3-step flow:
+    1. Initialize upload → get upload_url
+    2. Upload video file to upload_url
+    3. Video is auto-published after upload completes
+    """
+
+    # Max file size for direct upload (50MB). Larger files use chunked upload.
+    DIRECT_UPLOAD_MAX = 50 * 1024 * 1024
 
     def __init__(self, access_token: str):
         self.access_token = access_token
         self.headers = {
             'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json; charset=UTF-8',
         }
 
     def upload_video(
@@ -248,69 +266,111 @@ class TikTokAPI:
         video_path: str,
         caption: str,
         hashtags: List[str],
-        scheduled_time: Optional[datetime] = None
+        scheduled_time: Optional[datetime] = None,
+        privacy_level: str = "SELF_ONLY",
     ) -> Dict:
-        """
-        Upload video to TikTok and optionally schedule it.
+        """Upload video to TikTok using Content Posting API v2.
+
+        Flow: init upload → upload file → auto-publish.
 
         Args:
             video_path: Path to video file
             caption: Video caption (Vietnamese)
             hashtags: List of hashtags
-            scheduled_time: When to post (optional)
+            scheduled_time: When to post (optional, Unix timestamp)
+            privacy_level: SELF_ONLY, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, or PUBLIC_TO_EVERYONE
 
         Returns:
-            Response from TikTok API
+            Response dict with publish_id
         """
-
-        # Validate file exists
-        if not Path(video_path).exists():
+        video_file = Path(video_path)
+        if not video_file.exists():
             raise FileNotFoundError(f"Video file not found: {video_path}")
 
-        # Read video file
-        with open(video_path, 'rb') as f:
-            video_data = f.read()
+        file_size = video_file.stat().st_size
 
         # Combine caption and hashtags
         full_caption = caption
         if hashtags:
             full_caption += "\n\n" + " ".join(hashtags)
 
-        # Prepare payload
-        payload = {
-            "video": video_data,
-            "description": full_caption,
-            "privacy_level": "PUBLIC",  # or "PRIVATE", "FRIEND"
-            "disable_comment": False,
-            "disable_duet": False,
-            "disable_stitch": False
+        # Step 1: Initialize upload
+        init_payload = {
+            "post_info": {
+                "title": full_caption[:150],
+                "description": full_caption,
+                "privacy_level": privacy_level,
+                "disable_comment": False,
+                "disable_duet": False,
+                "disable_stitch": False,
+            },
+            "source_info": {
+                "source": "FILE_UPLOAD",
+                "video_size": file_size,
+            },
         }
 
-        # Add schedule time if provided
         if scheduled_time:
-            payload["schedule_time"] = int(scheduled_time.timestamp())
-            endpoint = f"{TIKTOK_API_BASE}/post/publish/scheduled/"
-        else:
-            endpoint = f"{TIKTOK_API_BASE}/post/publish/video/init/"
+            init_payload["post_info"]["schedule_time"] = int(scheduled_time.timestamp())
 
-        try:
-            response = requests.post(
-                endpoint,
-                headers=self.headers,
-                json=payload,
-                timeout=30
-            )
+        logger.info(f"Initializing TikTok upload for: {video_path} ({file_size / (1024*1024):.1f}MB)")
 
-            if response.status_code in [200, 201, 202]:
-                logger.info(f"Successfully uploaded video to TikTok: {video_path}")
-                return response.json()
-            else:
-                error_msg = f"TikTok API error: {response.status_code} - {response.text}"
-                logger.error(error_msg)
-                raise Exception(error_msg)
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request error uploading to TikTok: {e}")
-            raise
+        init_resp = requests.post(
+            f"{TIKTOK_API_BASE}/post/publish/video/init/",
+            headers=self.headers,
+            json=init_payload,
+            timeout=30,
+        )
+
+        if init_resp.status_code != 200:
+            raise Exception(f"TikTok init failed: {init_resp.status_code} - {init_resp.text}")
+
+        init_data = init_resp.json()
+        if init_data.get("error", {}).get("code") != "ok":
+            raise Exception(f"TikTok init error: {init_data}")
+
+        upload_url = init_data["data"]["upload_url"]
+        publish_id = init_data["data"].get("publish_id", "")
+        logger.info(f"Got upload URL, publish_id={publish_id}")
+
+        # Step 2: Upload video file
+        with open(video_path, 'rb') as f:
+            video_data = f.read()
+
+        upload_headers = {
+            'Content-Type': 'video/mp4',
+            'Content-Length': str(file_size),
+        }
+
+        upload_resp = requests.put(
+            upload_url,
+            headers=upload_headers,
+            data=video_data,
+            timeout=300,
+        )
+
+        if upload_resp.status_code not in [200, 201]:
+            raise Exception(f"TikTok upload failed: {upload_resp.status_code} - {upload_resp.text}")
+
+        logger.info(f"Successfully uploaded video to TikTok: {video_path}")
+
+        return {
+            "publish_id": publish_id,
+            "status": "processing",
+            "data": init_data.get("data", {}),
+        }
+
+    def check_publish_status(self, publish_id: str) -> Dict:
+        """Check the status of a published video."""
+        resp = requests.post(
+            f"{TIKTOK_API_BASE}/post/publish/status/fetch/",
+            headers=self.headers,
+            json={"publish_id": publish_id},
+            timeout=30,
+        )
+        if resp.status_code == 200:
+            return resp.json()
+        return {"error": resp.text}
 
     def get_video_analytics(self, video_id: str) -> Dict:
         """Get analytics for a specific video."""
@@ -325,7 +385,7 @@ class TikTokAPI:
                 endpoint,
                 headers=self.headers,
                 params=params,
-                timeout=30
+                timeout=30,
             )
 
             if response.status_code == 200:
@@ -407,6 +467,7 @@ class TikTokPoster:
     """Main class for posting TikTok content."""
 
     def __init__(self):
+        _validate_tiktok_config()
         self.api = TikTokAPI(TIKTOK_ACCESS_TOKEN)
         self.queue = ContentQueue()
         self.posted_log: List[Dict] = self._load_posted_log()

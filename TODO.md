@@ -14,21 +14,26 @@
 
 - [ ] Create YouTube channel manually (security restriction)
 - [ ] Set up YouTube Data API credentials (Google Cloud Console)
-- [ ] Test youtube-uploader.py
+- [ ] Download credentials.json → run `python3 scripts/youtube-uploader.py --auth`
+- [ ] Place avatar image at `assets/avatar.png` (512x512+ clear face photo)
+- [ ] Test pipeline: `python3 scripts/daily_pipeline.py --platform youtube --dry-run`
 - [ ] Generate first batch of video scripts with video-script-generator.py
 
 ## Priority 3: TikTok Setup
 
 - [ ] Create TikTok account manually (security restriction)
-- [ ] Apply for TikTok Content Posting API access
-- [ ] Test tiktok-poster.py
+- [ ] Create TikTok Developer app (developers.tiktok.com)
+- [ ] Apply for Content Posting API v2 access
+- [ ] Get access token via OAuth2 flow
+- [ ] Test pipeline: `python3 scripts/daily_pipeline.py --platform tiktok --format short --dry-run`
 - [ ] Generate first batch of scripts with tiktok-script-generator.py
 
 ## Priority 4: Automation
 
-- [ ] Configure .env file from scripts/.env.example
-- [ ] Install Python dependencies: pip install -r scripts/requirements.txt
-- [ ] Run setup-cron.sh to schedule daily posts
+- [ ] Configure .env file from .env.example
+- [ ] Install Python dependencies: pip install -r requirements.txt
+- [ ] Install FFmpeg (required for video composition)
+- [ ] Run setup-cron.sh to schedule daily posts (Facebook + YouTube + TikTok)
 - [ ] Monitor first week of automated posts
 - [ ] Tune content generation prompts based on engagement
 
@@ -46,3 +51,11 @@
 - [x] TikTok automation scripts built
 - [x] social-media-clip-creator agent installed
 - [x] social-content skill updated with comprehensive guide
+- [x] Video composer supports vertical format (1080x1920) for TikTok/Shorts
+- [x] Unified daily pipeline supports YouTube + TikTok (daily_pipeline.py)
+- [x] TikTok poster updated to Content Posting API v2
+- [x] TikTok script generator updated with latest Claude model
+- [x] Cron setup supports all 3 platforms (Facebook + YouTube + TikTok)
+- [x] Environment variables standardized (ANTHROPIC_API_KEY)
+- [x] .env.example updated with all required vars
+- [x] requirements.txt updated for full pipeline

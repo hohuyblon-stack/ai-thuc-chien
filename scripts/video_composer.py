@@ -36,11 +36,16 @@ BRAND_PRIMARY = "#00D4AA"  # Teal
 BRAND_DARK = "#0A0A0A"  # Near black
 BRAND_ACCENT = "#FF6B35"  # Orange
 
-# Video specs
+# Video specs — Landscape (YouTube long-form)
 OUTPUT_WIDTH = 1920
 OUTPUT_HEIGHT = 1080
 OUTPUT_FPS = 30
 OUTPUT_BITRATE = "4M"
+
+# Video specs — Vertical (TikTok / YouTube Shorts)
+VERTICAL_WIDTH = 1080
+VERTICAL_HEIGHT = 1920
+VERTICAL_BITRATE = "3M"
 
 # Subtitle styling
 SUB_FONT_SIZE = 24
@@ -224,6 +229,125 @@ class VideoComposer:
         file_size_mb = output.stat().st_size / (1024 * 1024)
 
         logger.info(f"Final video: {output} ({duration:.1f}s, {file_size_mb:.1f}MB)")
+
+        return ComposerResult(
+            output_path=str(output),
+            duration_seconds=duration,
+            file_size_mb=file_size_mb,
+        )
+
+    def compose_vertical(
+        self,
+        avatar_video: str,
+        output_path: str,
+        subtitles: Optional[str] = None,
+        title_text: Optional[str] = None,
+        background_music: Optional[str] = None,
+        music_volume: float = 0.08,
+    ) -> ComposerResult:
+        """Compose vertical video (1080x1920) for TikTok / YouTube Shorts.
+
+        Args:
+            avatar_video: Path to talking head video
+            output_path: Output video path
+            subtitles: Path to SRT subtitle file
+            title_text: Title text to overlay at the top
+            background_music: Path to background music file
+            music_volume: Background music volume (0.0-1.0)
+        """
+        output = Path(output_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        filter_parts = []
+        inputs = ["-i", avatar_video]
+        input_count = 1
+
+        if background_music:
+            inputs += ["-i", background_music]
+            input_count += 1
+
+        # Scale avatar to vertical resolution with padding (face centered upper third)
+        filter_parts.append(
+            f"[0:v]scale={VERTICAL_WIDTH}:{VERTICAL_HEIGHT}:force_original_aspect_ratio=decrease,"
+            f"pad={VERTICAL_WIDTH}:{VERTICAL_HEIGHT}:(ow-iw)/2:(oh-ih)/3:color={BRAND_DARK[1:]},"
+            f"fps={OUTPUT_FPS}[base]"
+        )
+
+        current_video = "base"
+
+        # Title overlay at the top
+        if title_text:
+            escaped_title = title_text.replace("'", "\\'").replace(":", "\\:")
+            # Word-wrap long titles for vertical format
+            filter_parts.append(
+                f"[{current_video}]drawtext="
+                f"text='{escaped_title}':"
+                f"fontsize=42:fontcolor=white:"
+                f"borderw=3:bordercolor=black:"
+                f"x=(w-text_w)/2:y=h*0.05:"
+                f"enable='lt(t,5)':"
+                f"alpha='if(lt(t,1),t,if(gt(t,4),max(0,5-t),1))'[titled]"
+            )
+            current_video = "titled"
+
+        # Channel watermark (bottom center for vertical)
+        filter_parts.append(
+            f"[{current_video}]drawtext="
+            f"text='AI Thuc Chien':"
+            f"fontsize=18:fontcolor=white@0.5:"
+            f"x=(w-text_w)/2:y=h-text_h-30[watermarked]"
+        )
+        current_video = "watermarked"
+
+        # Burn in subtitles (larger font for vertical, positioned in lower third)
+        if subtitles:
+            sub_path = Path(subtitles).resolve()
+            escaped_sub = str(sub_path).replace(":", "\\:").replace("'", "\\'")
+            filter_parts.append(
+                f"[{current_video}]subtitles='{escaped_sub}':"
+                f"force_style='FontSize={SUB_FONT_SIZE + 4},"
+                f"PrimaryColour=&H00FFFFFF,"
+                f"OutlineColour=&H00000000,"
+                f"Outline={SUB_OUTLINE_WIDTH + 1},"
+                f"MarginV={SUB_MARGIN_V + 40},"
+                f"Alignment=2'[subtitled]"
+            )
+            current_video = "subtitled"
+
+        filter_parts.append(f"[{current_video}]null[vout]")
+
+        # Audio handling
+        if background_music:
+            avatar_duration = get_duration(avatar_video)
+            filter_parts.append(
+                f"[1:a]aloop=loop=-1:size=2e+09,atrim=0:{avatar_duration},"
+                f"volume={music_volume}[bgm];"
+                f"[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+            )
+            audio_map = ["-map", "[aout]"]
+        else:
+            audio_map = ["-map", "0:a?"]
+
+        filter_complex = ";".join(filter_parts)
+        args = (
+            inputs
+            + ["-filter_complex", filter_complex]
+            + ["-map", "[vout]"]
+            + audio_map
+            + [
+                "-c:v", "libx264", "-preset", "medium", "-b:v", VERTICAL_BITRATE,
+                "-c:a", "aac", "-b:a", "128k",
+                "-movflags", "+faststart",
+                str(output),
+            ]
+        )
+
+        run_ffmpeg(args, f"Composing vertical video: {output.name}")
+
+        duration = get_duration(str(output))
+        file_size_mb = output.stat().st_size / (1024 * 1024)
+
+        logger.info(f"Vertical video: {output} ({duration:.1f}s, {file_size_mb:.1f}MB)")
 
         return ComposerResult(
             output_path=str(output),
