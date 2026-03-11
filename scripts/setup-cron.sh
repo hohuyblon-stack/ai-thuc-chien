@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 LOG_DIR="$PROJECT_DIR/logs"
 DATA_DIR="$PROJECT_DIR/data"
-ENV_FILE="$SCRIPT_DIR/.env"
+ENV_FILE="$PROJECT_DIR/.env"
 
 # Colors for output
 RED='\033[0;31m'
@@ -93,6 +93,11 @@ VENV_PYTHON="$PROJECT_DIR/venv/bin/python3"
 PIPELINE_SCRIPT="$SCRIPT_DIR/daily_pipeline.py"
 AUTOPOSTER_SCRIPT="$SCRIPT_DIR/facebook-autoposter.py"
 
+# NOTE: All times below are in Vietnam time (GMT+7).
+# If your server is NOT in GMT+7, adjust accordingly or set TZ in cron:
+#   TZ=Asia/Ho_Chi_Minh
+# To check server timezone: timedatectl or date +%Z
+
 # --- Facebook Autoposter (1-4pm Vietnam time) ---
 FB_HOUR=$((13 + RANDOM % 3))
 FB_MINUTE=$((RANDOM % 60))
@@ -136,6 +141,7 @@ fi
 # Add all cron jobs
 (crontab -l 2>/dev/null || echo ""
 echo "# --- AI Thuc Chien Automation ---"
+echo "CRON_TZ=Asia/Ho_Chi_Minh"
 echo "$FB_CRON"
 echo "$YT_CRON"
 echo "$TT_CRON"
@@ -162,7 +168,7 @@ $LOG_DIR/*.log {
     create 0644 \$(whoami) \$(whoami)
     sharedscripts
     postrotate
-        echo "Log rotated at \$(date)" >> $LOG_FILE
+        echo "Log rotated at \$(date)" >> $LOG_DIR/logrotate.log
     endscript
 }
 EOF
@@ -234,7 +240,7 @@ fi
 # Check API keys
 if [ -f "$SCRIPT_DIR/.env" ]; then
     . "$SCRIPT_DIR/.env"
-    if [ -z "$FACEBOOK_PAGE_ID" ] || [ -z "$FACEBOOK_ACCESS_TOKEN" ] || [ -z "$CLAUDE_API_KEY" ] || [ -z "$TAVILY_API_KEY" ]; then
+    if [ -z "$FACEBOOK_PAGE_ID" ] || [ -z "$FACEBOOK_ACCESS_TOKEN" ] || [ -z "${ANTHROPIC_API_KEY:-$CLAUDE_API_KEY}" ] || [ -z "$TAVILY_API_KEY" ]; then
         echo "✗ Missing required API keys in .env"
     else
         echo "✓ All required API keys are configured"

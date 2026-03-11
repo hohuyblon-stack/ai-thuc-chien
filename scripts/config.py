@@ -10,7 +10,8 @@ from datetime import time
 # ============================================================================
 FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID", "")
 FACEBOOK_ACCESS_TOKEN = os.getenv("FACEBOOK_ACCESS_TOKEN", "")
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
+CLAUDE_API_KEY = ANTHROPIC_API_KEY  # backward compat
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 
 # ============================================================================
@@ -112,7 +113,7 @@ RSS_FEEDS = [
 # ============================================================================
 # FACEBOOK GRAPH API
 # ============================================================================
-FACEBOOK_API_VERSION = "v18.0"
+FACEBOOK_API_VERSION = "v21.0"
 FACEBOOK_GRAPH_URL = f"https://graph.facebook.com/{FACEBOOK_API_VERSION}"
 
 # ============================================================================
@@ -126,7 +127,7 @@ RETRY_DELAY_SECONDS = 5  # Start with 5s, exponential backoff
 # ============================================================================
 def validate_config() -> bool:
     """Validate that all required config is present."""
-    required_keys = ["FACEBOOK_PAGE_ID", "FACEBOOK_ACCESS_TOKEN", "CLAUDE_API_KEY", "TAVILY_API_KEY"]
+    required_keys = ["FACEBOOK_PAGE_ID", "FACEBOOK_ACCESS_TOKEN", "ANTHROPIC_API_KEY", "TAVILY_API_KEY"]
     missing = [key for key in required_keys if not globals()[key]]
 
     if missing:

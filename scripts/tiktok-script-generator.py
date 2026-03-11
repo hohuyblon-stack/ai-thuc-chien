@@ -22,29 +22,38 @@ from dotenv import load_dotenv
 # CONFIGURATION & SETUP
 # ============================================================================
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (explicit path for cron compatibility)
+_env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(_env_path)
 
 # Configure logging
+_log_dir = Path(__file__).parent.parent / "logs"
+_log_dir.mkdir(exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('tiktok_script_generator.log'),
+        logging.FileHandler(str(_log_dir / 'tiktok_script_generator.log')),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
-# API Configuration
+# API Configuration (lazy — don't exit at import time)
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY') or os.getenv('CLAUDE_API_KEY')
 
-if not ANTHROPIC_API_KEY:
-    logger.error("ANTHROPIC_API_KEY (or CLAUDE_API_KEY) not found in environment variables")
-    sys.exit(1)
+claude_client = None  # initialized on first use
 
-# Initialize Claude client
-claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+def _get_claude_client():
+    """Lazy initialization of Claude client."""
+    global claude_client
+    if claude_client is None:
+        api_key = os.getenv('ANTHROPIC_API_KEY') or os.getenv('CLAUDE_API_KEY')
+        if not api_key:
+            raise RuntimeError("ANTHROPIC_API_KEY (or CLAUDE_API_KEY) not found in environment variables")
+        claude_client = anthropic.Anthropic(api_key=api_key)
+    return claude_client
 
 # Script output directory
 SCRIPTS_DIR = Path(__file__).parent.parent / "generated_scripts"
@@ -309,7 +318,8 @@ CRITICAL NOTES:
 Trả lời CHỈ JSON, không giải thích."""
 
     try:
-        message = claude_client.messages.create(
+        client = _get_claude_client()
+        message = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=2048,
             messages=[

@@ -23,15 +23,18 @@ from dotenv import load_dotenv
 # CONFIGURATION & SETUP
 # ============================================================================
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (explicit path for cron compatibility)
+_env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(_env_path)
 
 # Configure logging
+_log_dir = Path(__file__).parent.parent / "logs"
+_log_dir.mkdir(exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('tiktok_poster.log'),
+        logging.FileHandler(str(_log_dir / 'tiktok_poster.log')),
         logging.StreamHandler()
     ]
 )
@@ -333,21 +336,19 @@ class TikTokAPI:
         publish_id = init_data["data"].get("publish_id", "")
         logger.info(f"Got upload URL, publish_id={publish_id}")
 
-        # Step 2: Upload video file
-        with open(video_path, 'rb') as f:
-            video_data = f.read()
-
+        # Step 2: Upload video file (streamed to avoid loading into RAM)
         upload_headers = {
             'Content-Type': 'video/mp4',
             'Content-Length': str(file_size),
         }
 
-        upload_resp = requests.put(
-            upload_url,
-            headers=upload_headers,
-            data=video_data,
-            timeout=300,
-        )
+        with open(video_path, 'rb') as f:
+            upload_resp = requests.put(
+                upload_url,
+                headers=upload_headers,
+                data=f,
+                timeout=300,
+            )
 
         if upload_resp.status_code not in [200, 201]:
             raise Exception(f"TikTok upload failed: {upload_resp.status_code} - {upload_resp.text}")

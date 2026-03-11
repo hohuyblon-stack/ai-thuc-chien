@@ -59,6 +59,16 @@ LOGS_DIR.mkdir(exist_ok=True)
 PLATFORMS = {"youtube", "tiktok", "all"}
 
 
+def _check_ffmpeg():
+    """Check if FFmpeg is available on the system."""
+    import shutil
+    if not shutil.which("ffmpeg"):
+        logger.warning(
+            "FFmpeg not found on PATH. Video composition will fail. "
+            "Install with: sudo apt install ffmpeg (Linux) or brew install ffmpeg (macOS)"
+        )
+
+
 # ============================================================================
 # Logging
 # ============================================================================
@@ -155,7 +165,12 @@ CHỈ trả về JSON, không có text khác."""
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
 
-    return json.loads(raw)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse Claude response as JSON: {e}")
+        logger.error(f"Raw response: {raw[:500]}")
+        raise ValueError(f"Claude returned invalid JSON: {e}")
 
 
 # ============================================================================
@@ -184,11 +199,11 @@ def fetch_news() -> str:
 
     # Fallback: RSS feeds
     try:
-        fetcher = NewsFetcher()
-        news_items = fetcher.fetch_all()
+        fetcher = NewsFetcher(tavily_api_key=tavily_key or "")
+        news_items = fetcher.fetch_all_news()
         articles = []
         for item in news_items[:5]:
-            articles.append(f"- {item.get('title', '')}: {item.get('summary', '')[:200]}")
+            articles.append(f"- {item.title}: {item.summary[:200]}")
         return "\n".join(articles) if articles else "Không có tin tức mới hôm nay."
     except Exception as e:
         logger.error(f"RSS fetch failed: {e}")
@@ -211,6 +226,7 @@ def upload_to_youtube(
     Returns video ID if successful, None if failed.
     """
     try:
+        import google.auth.transport.requests
         from google.oauth2.credentials import Credentials
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaFileUpload
@@ -224,7 +240,18 @@ def upload_to_youtube(
         logger.info("Run 'python3 youtube-uploader.py --auth' to authenticate first")
         return None
 
-    creds = Credentials.from_authorized_user_file(str(token_path))
+    creds = Credentials.from_authorized_user_file(
+        str(token_path),
+        scopes=["https://www.googleapis.com/auth/youtube.upload"],
+    )
+
+    # Refresh token if expired
+    if creds.expired and creds.refresh_token:
+        logger.info("Refreshing expired YouTube credentials")
+        creds.refresh(google.auth.transport.requests.Request())
+        token_path.write_text(creds.to_json())
+        logger.info("YouTube credentials refreshed and saved")
+
     youtube = build("youtube", "v3", credentials=creds)
 
     body = {
@@ -287,12 +314,15 @@ def upload_to_tiktok(
         if hashtags:
             full_caption += "\n\n" + " ".join(hashtags)
 
+        # Privacy level from env var (default SELF_ONLY for safety)
+        privacy_level = os.getenv("TIKTOK_PRIVACY_LEVEL", "SELF_ONLY")
+
         # Step 1: Init upload
         init_payload = {
             "post_info": {
                 "title": full_caption[:150],
                 "description": full_caption,
-                "privacy_level": "SELF_ONLY",
+                "privacy_level": privacy_level,
                 "disable_comment": False,
                 "disable_duet": False,
                 "disable_stitch": False,
@@ -322,16 +352,14 @@ def upload_to_tiktok(
         upload_url = init_data["data"]["upload_url"]
         publish_id = init_data["data"].get("publish_id", "")
 
-        # Step 2: Upload video file
+        # Step 2: Upload video file (streamed to avoid loading into RAM)
         with open(video_path, "rb") as f:
-            video_data = f.read()
-
-        upload_resp = requests.put(
-            upload_url,
-            headers={"Content-Type": "video/mp4", "Content-Length": str(file_size)},
-            data=video_data,
-            timeout=300,
-        )
+            upload_resp = requests.put(
+                upload_url,
+                headers={"Content-Type": "video/mp4", "Content-Length": str(file_size)},
+                data=f,
+                timeout=300,
+            )
 
         if upload_resp.status_code not in [200, 201]:
             logger.error(f"TikTok upload failed: {upload_resp.status_code}")
@@ -364,8 +392,23 @@ class DailyPipeline:
         self.today = datetime.now().strftime("%Y%m%d")
         self.work_dir = OUTPUT_DIR / self.today
         self.work_dir.mkdir(exist_ok=True)
+        _check_ffmpeg()
         logger.info(f"Pipeline initialized: format={format_type}, platforms={self.platforms}, dry_run={dry_run}")
         logger.info(f"Work directory: {self.work_dir}")
+
+    def cleanup_old_outputs(self, keep_days: int = 7):
+        """Remove output directories older than keep_days to free disk space."""
+        import shutil
+        cutoff = datetime.now().timestamp() - (keep_days * 86400)
+        for d in OUTPUT_DIR.iterdir():
+            if d.is_dir() and d.name.isdigit() and len(d.name) == 8:
+                try:
+                    dir_date = datetime.strptime(d.name, "%Y%m%d").timestamp()
+                    if dir_date < cutoff:
+                        shutil.rmtree(d)
+                        logger.info(f"Cleaned up old output: {d}")
+                except (ValueError, OSError) as e:
+                    logger.debug(f"Skipping {d}: {e}")
 
     def step_news(self) -> str:
         """Step 1: Fetch AI news."""
@@ -510,6 +553,9 @@ class DailyPipeline:
         results = {}
 
         try:
+            # Cleanup old outputs (keep last 7 days)
+            self.cleanup_old_outputs()
+
             # Step 1: News
             if not start_step or start_step == "news":
                 news = self.step_news()
@@ -570,8 +616,19 @@ class DailyPipeline:
                 publish_id = self.step_upload_tiktok(composed["vertical"], script_data)
                 results["tiktok_publish_id"] = publish_id
 
+            # Determine overall status based on upload results
+            upload_failed = False
+            if "youtube" in self.platforms and not self.dry_run:
+                if "youtube" in composed and not results.get("youtube_id"):
+                    upload_failed = True
+                    logger.warning("YouTube upload failed or was skipped")
+            if "tiktok" in self.platforms and not self.dry_run:
+                if "vertical" in composed and not results.get("tiktok_publish_id"):
+                    upload_failed = True
+                    logger.warning("TikTok upload failed or was skipped")
+
             # Save pipeline results
-            results["status"] = "success"
+            results["status"] = "partial" if upload_failed else "success"
             results["timestamp"] = datetime.now().isoformat()
             results["platforms"] = list(self.platforms)
             results["format"] = self.format_type
