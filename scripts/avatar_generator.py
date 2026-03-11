@@ -140,8 +140,8 @@ class AvatarGenerator:
             f.write(response.content)
 
         elapsed = time.time() - start_time
-        # SadTalker on Replicate costs ~$0.05 per run
-        cost = 0.05
+        # SadTalker on Replicate costs ~$0.27 per short clip, more for longer audio
+        cost = 0.27
 
         logger.info(f"Avatar video saved: {output} ({elapsed:.1f}s, ~${cost:.2f})")
 
