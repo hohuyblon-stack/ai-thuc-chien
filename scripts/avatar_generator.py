@@ -35,10 +35,7 @@ except ImportError:
     print("ERROR: openai not found. Install with: pip install openai")
     sys.exit(1)
 
-try:
-    import replicate
-except ImportError:
-    print("WARNING: replicate not found. Install with: pip install replicate for fallback avatar generation")
+replicate = None  # Lazy import — only needed for SadTalker fallback
 
 
 # ============================================================================
@@ -288,6 +285,10 @@ class AvatarGenerator:
     """Generates talking-head videos using Replicate API."""
 
     def __init__(self, api_token: Optional[str] = None, model: str = DEFAULT_MODEL):
+        global replicate
+        if replicate is None:
+            import replicate as _replicate
+            replicate = _replicate
         self.api_token = api_token or os.getenv("REPLICATE_API_TOKEN")
         if not self.api_token:
             raise ValueError(
@@ -384,18 +385,72 @@ class AvatarGenerator:
 # Reference Image Preparation
 # ============================================================================
 
-def get_avatar_generator() -> AvatarGenerator:
+class FFmpegStaticAvatarGenerator:
+    """Generates video from static image + audio using FFmpeg.
+
+    No lip-sync, but zero-cost and works immediately.
+    Good enough to start publishing while researching better avatar APIs.
+    """
+
+    def __init__(self):
+        self.model = "ffmpeg-static"
+        logger.info("FFmpegStaticAvatarGenerator initialized (no lip-sync)")
+
+    def generate(
+        self,
+        audio_path: str,
+        image_path: str,
+        output_path: str,
+    ) -> AvatarResult:
+        """Generate video from static image + audio overlay."""
+        start_time = time.time()
+        output = Path(output_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        # FFmpeg: loop image for audio duration, overlay audio
+        cmd = [
+            "ffmpeg", "-y",
+            "-loop", "1", "-i", image_path,
+            "-i", audio_path,
+            "-c:v", "libx264", "-tune", "stillimage",
+            "-c:a", "aac", "-b:a", "192k",
+            "-vf", "scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2",
+            "-pix_fmt", "yuv420p",
+            "-shortest",
+            str(output),
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg static avatar failed: {result.stderr}")
+
+        elapsed = time.time() - start_time
+        logger.info(f"Static avatar video saved: {output} ({elapsed:.1f}s, $0.00)")
+
+        return AvatarResult(
+            video_path=str(output),
+            model_used="ffmpeg-static",
+            generation_time_seconds=elapsed,
+            cost_estimate=0.0,
+        )
+
+
+def get_avatar_generator():
     """Factory function to get the best available avatar generator.
 
-    Uses Poe OmniHuman if POE_API_KEY is set, otherwise falls back to Replicate SadTalker.
+    Priority: Replicate SadTalker > FFmpeg static (free fallback).
+    Poe OmniHuman is not available via API.
     """
-    poe_key = os.getenv("POE_API_KEY")
-    if poe_key:
-        logger.info("Using Poe OmniHuman avatar generator")
-        return PoeOmniHumanGenerator()
-    else:
-        logger.info("Using Replicate SadTalker avatar generator (fallback)")
-        return AvatarGenerator()
+    replicate_token = os.getenv("REPLICATE_API_TOKEN")
+    if replicate_token:
+        try:
+            logger.info("Using Replicate SadTalker avatar generator")
+            return AvatarGenerator(api_token=replicate_token)
+        except Exception as e:
+            logger.warning(f"Replicate init failed: {e}, falling back to FFmpeg static")
+
+    logger.info("Using FFmpeg static avatar (free, no lip-sync)")
+    return FFmpegStaticAvatarGenerator()
 
 
 def prepare_reference_image(

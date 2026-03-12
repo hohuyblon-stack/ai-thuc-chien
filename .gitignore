@@ -48,6 +48,18 @@ content_queue.json
 posted_videos.json
 .claude/
 
+# Pipeline output (regenerated daily)
+output/
+*.mp4
+*.mp3
+*.wav
+
+# Virtual env
+.venv/
+
+# Original selfie
+Photo on *.jpg
+
 # OS
 .DS_Store
 Thumbs.db

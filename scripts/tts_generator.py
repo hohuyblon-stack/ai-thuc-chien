@@ -179,20 +179,32 @@ class VietnameseTTS:
         if subtitle_path:
             sub_path = Path(subtitle_path)
             sub_path.parent.mkdir(parents=True, exist_ok=True)
-            sub_maker = edge_tts.SubMaker()
+            sentences = []
 
             with open(output, "wb") as audio_file:
                 async for chunk in communicate.stream():
                     if chunk["type"] == "audio":
                         audio_file.write(chunk["data"])
-                    elif chunk["type"] == "WordBoundary":
-                        sub_maker.feed(chunk)
+                    elif chunk["type"] in ("WordBoundary", "SentenceBoundary"):
+                        sentences.append(chunk)
 
-            srt_content = sub_maker.generate_subs()
+            # Build SRT from sentence boundaries (Vietnamese voice lacks word-level)
+            if sentences:
+                srt_lines = []
+                for i, s in enumerate(sentences, 1):
+                    offset_ms = s["offset"] // 10000  # 100ns units to ms
+                    dur_ms = s["duration"] // 10000
+                    start = self._ms_to_srt_time(offset_ms)
+                    end = self._ms_to_srt_time(offset_ms + dur_ms)
+                    srt_lines.append(f"{i}\n{start} --> {end}\n{s['text']}\n")
+                srt_content = "\n".join(srt_lines)
+            else:
+                srt_content = ""
+
             with open(sub_path, "w", encoding="utf-8") as f:
                 f.write(srt_content)
 
-            logger.info(f"Subtitles saved: {sub_path}")
+            logger.info(f"Subtitles saved: {sub_path} ({len(sentences)} cues)")
         else:
             await communicate.save(str(output))
 
@@ -209,6 +221,15 @@ class VietnameseTTS:
             text_length=len(text),
         )
 
+    @staticmethod
+    def _ms_to_srt_time(ms: int) -> str:
+        """Convert milliseconds to SRT time format HH:MM:SS,mmm."""
+        h = ms // 3600000
+        m = (ms % 3600000) // 60000
+        s = (ms % 60000) // 1000
+        ms_rem = ms % 1000
+        return f"{h:02d}:{m:02d}:{s:02d},{ms_rem:03d}"
+
     async def _get_duration(self, audio_path: str) -> float:
         """Get audio duration using ffprobe."""
         try:
@@ -223,8 +244,7 @@ class VietnameseTTS:
             return float(data["format"]["duration"])
         except (KeyError, json.JSONDecodeError, FileNotFoundError):
             logger.warning("ffprobe failed, estimating duration from text length")
-            # Rough estimate: ~3.5 chars/second for Vietnamese
-            return len(open(audio_path, "rb").read()) / 16000  # rough fallback
+            return len(open(audio_path, "rb").read()) / 16000
 
     def generate_sync(
         self,
@@ -243,15 +263,11 @@ class VietnameseTTS:
 def get_tts_engine() -> VietnameseTTS:
     """Factory function to get the best available TTS engine.
 
-    Uses Poe ElevenLabs if POE_API_KEY is set, otherwise falls back to Edge TTS.
+    Edge TTS is free and reliable — use it as primary.
+    Poe ElevenLabs endpoint is not yet supported via OpenAI client.
     """
-    poe_key = os.getenv("POE_API_KEY")
-    if poe_key:
-        logger.info("Using Poe ElevenLabs TTS")
-        return PoeElevenLabsTTS(voice="female")
-    else:
-        logger.info("Using Edge TTS (fallback)")
-        return VietnameseTTS(voice="male")
+    logger.info("Using Edge TTS (free Vietnamese voices)")
+    return VietnameseTTS(voice="male")
 
 
 def clean_script_for_tts(script_text: str) -> str:

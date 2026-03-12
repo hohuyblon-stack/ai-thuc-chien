@@ -163,7 +163,27 @@ CHỈ trả về JSON, không có text khác."""
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
 
-    return json.loads(raw)
+    # Try parsing, with repair for common LLM JSON issues
+    try:
+        return json.loads(raw, strict=False)
+    except json.JSONDecodeError:
+        # Try to extract JSON object from the response
+        import re
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(), strict=False)
+            except json.JSONDecodeError:
+                pass
+        # Last resort: build a minimal script object
+        logger.warning("JSON parse failed, using raw text as script")
+        return {
+            "title": "AI Thực Chiến - Tin Tức AI Hôm Nay",
+            "description": "Tin tức AI mới nhất cho doanh nghiệp Việt #AI #automation",
+            "tags": ["AI", "automation", "Vietnam", "business"],
+            "script": raw[:3000],
+            "key_points": ["AI news", "Automation", "Business impact"],
+        }
 
 
 # ============================================================================
@@ -192,7 +212,7 @@ def fetch_news() -> str:
 
     # Fallback: RSS feeds
     try:
-        fetcher = NewsFetcher()
+        fetcher = NewsFetcher(tavily_api_key="")
         news_items = fetcher.fetch_all()
         articles = []
         for item in news_items[:5]:
@@ -324,18 +344,18 @@ class DailyPipeline:
 
         avatar_video = str(self.work_dir / "avatar.mp4")
 
-        # Use best available avatar generator (Poe OmniHuman > Replicate SadTalker)
+        # Use best available avatar generator
         generator = get_avatar_generator()
 
-        if hasattr(generator, 'model') and generator.model == "OmniHuman":
-            # Poe OmniHuman generator
+        if hasattr(generator, 'model') and generator.model == "ffmpeg-static":
+            # FFmpeg static — simple image + audio
             result = generator.generate(
                 audio_path=audio_path,
                 image_path=str(AVATAR_IMAGE),
                 output_path=avatar_video,
             )
         else:
-            # Replicate SadTalker fallback
+            # Replicate SadTalker (lip-synced)
             result = generator.generate(
                 audio_path=audio_path,
                 image_path=str(AVATAR_IMAGE),
@@ -423,10 +443,13 @@ class DailyPipeline:
             # Step 5: Compose
             if not start_step or start_step in ("news", "script", "tts", "avatar", "compose"):
                 subtitle_path = str(self.work_dir / "subtitles.srt")
+                # Only use subtitles if file exists and is non-empty
+                sub_file = Path(subtitle_path)
+                use_subs = sub_file.exists() and sub_file.stat().st_size > 10
                 final_video = self.step_compose(
                     avatar_video,
                     script_data["title"],
-                    subtitle_path if Path(subtitle_path).exists() else None,
+                    subtitle_path if use_subs else None,
                 )
                 results["final_video"] = final_video
             else:

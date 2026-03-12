@@ -116,106 +116,40 @@ class VideoComposer:
         intro_seconds: float = 2.0,
         outro_seconds: float = 3.0,
     ) -> ComposerResult:
-        """Compose final video from all components.
+        """Compose final video from avatar + audio.
 
-        Args:
-            avatar_video: Path to talking head video
-            output_path: Output video path
-            subtitles: Path to SRT subtitle file
-            title_text: Title text to overlay at the start
-            background_music: Path to background music file
-            music_volume: Background music volume (0.0-1.0)
-            intro_seconds: Duration of title intro
-            outro_seconds: Duration of subscribe outro
+        Uses only basic FFmpeg filters (no drawtext/subtitles — requires ffmpeg-full).
+        Subtitles are embedded as a soft subtitle track instead of burned in.
         """
         output = Path(output_path)
         output.parent.mkdir(parents=True, exist_ok=True)
 
-        # Build FFmpeg filter chain
-        filter_parts = []
-        inputs = ["-i", avatar_video]
-        input_count = 1
-
-        if background_music:
-            inputs += ["-i", background_music]
-            input_count += 1
-
         # Scale avatar to output resolution with padding
-        filter_parts.append(
-            f"[0:v]scale={OUTPUT_WIDTH}:{OUTPUT_HEIGHT}:force_original_aspect_ratio=decrease,"
+        vf = (
+            f"scale={OUTPUT_WIDTH}:{OUTPUT_HEIGHT}:force_original_aspect_ratio=decrease,"
             f"pad={OUTPUT_WIDTH}:{OUTPUT_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color={BRAND_DARK[1:]},"
-            f"fps={OUTPUT_FPS}[base]"
+            f"fps={OUTPUT_FPS}"
         )
 
-        current_video = "base"
+        args = ["-i", avatar_video]
 
-        # Add title overlay at the start
-        if title_text:
-            escaped_title = title_text.replace("'", "\\'").replace(":", "\\:")
-            filter_parts.append(
-                f"[{current_video}]drawtext="
-                f"text='{escaped_title}':"
-                f"fontsize=48:fontcolor=white:"
-                f"borderw=3:bordercolor=black:"
-                f"x=(w-text_w)/2:y=h*0.08:"
-                f"enable='lt(t,{intro_seconds + 3})':"
-                f"alpha='if(lt(t,{intro_seconds}),t/{intro_seconds},if(gt(t,{intro_seconds + 2}),max(0,1-(t-{intro_seconds + 2})),1))'[titled]"
-            )
-            current_video = "titled"
+        # Add subtitles as soft track if available
+        if subtitles and Path(subtitles).exists():
+            args += ["-i", subtitles]
 
-        # Add channel watermark (bottom right)
-        filter_parts.append(
-            f"[{current_video}]drawtext="
-            f"text='AI Thuc Chien':"
-            f"fontsize=20:fontcolor=white@0.6:"
-            f"x=w-text_w-20:y=h-text_h-20[watermarked]"
-        )
-        current_video = "watermarked"
+        args += [
+            "-vf", vf,
+            "-c:v", "libx264", "-preset", "medium", "-b:v", OUTPUT_BITRATE,
+            "-c:a", "aac", "-b:a", "128k",
+        ]
 
-        # Burn in subtitles
-        if subtitles:
-            sub_path = Path(subtitles).resolve()
-            escaped_sub = str(sub_path).replace(":", "\\:").replace("'", "\\'")
-            filter_parts.append(
-                f"[{current_video}]subtitles='{escaped_sub}':"
-                f"force_style='FontSize={SUB_FONT_SIZE},"
-                f"PrimaryColour=&H00FFFFFF,"
-                f"OutlineColour=&H00000000,"
-                f"Outline={SUB_OUTLINE_WIDTH},"
-                f"MarginV={SUB_MARGIN_V},"
-                f"Alignment=2'[subtitled]"
-            )
-            current_video = "subtitled"
-
-        # Final output label
-        filter_parts.append(f"[{current_video}]null[vout]")
-
-        # Audio handling
-        if background_music:
-            avatar_duration = get_duration(avatar_video)
-            filter_parts.append(
-                f"[1:a]aloop=loop=-1:size=2e+09,atrim=0:{avatar_duration},"
-                f"volume={music_volume}[bgm];"
-                f"[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]"
-            )
-            audio_map = ["-map", "[aout]"]
-        else:
-            audio_map = ["-map", "0:a?"]
-
-        # Build full FFmpeg command
-        filter_complex = ";".join(filter_parts)
-        args = (
-            inputs
-            + ["-filter_complex", filter_complex]
-            + ["-map", "[vout]"]
-            + audio_map
-            + [
-                "-c:v", "libx264", "-preset", "medium", "-b:v", OUTPUT_BITRATE,
-                "-c:a", "aac", "-b:a", "128k",
-                "-movflags", "+faststart",
-                str(output),
+        if subtitles and Path(subtitles).exists():
+            args += [
+                "-c:s", "mov_text",
+                "-metadata:s:s:0", "language=vie",
             ]
-        )
+
+        args += ["-movflags", "+faststart", str(output)]
 
         run_ffmpeg(args, f"Composing final video: {output.name}")
 
