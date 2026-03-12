@@ -16,14 +16,26 @@ import argparse
 import json
 import logging
 import sys
+import os
+import base64
 from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass
+from dotenv import load_dotenv
+
+# Load environment variables
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(env_path)
 
 try:
     import edge_tts
 except ImportError:
-    print("ERROR: edge-tts not found. Install with: pip install edge-tts")
+    print("WARNING: edge-tts not found. Install with: pip install edge-tts for fallback TTS")
+
+try:
+    from openai import OpenAI
+except ImportError:
+    print("ERROR: openai not found. Install with: pip install openai")
     sys.exit(1)
 
 
@@ -57,8 +69,89 @@ class TTSResult:
 # TTS Generation
 # ============================================================================
 
+class PoeElevenLabsTTS:
+    """Vietnamese Text-to-Speech using Poe API (ElevenLabs v3)"""
+
+    def __init__(self, voice: str = "female"):
+        self.api_key = os.getenv("POE_API_KEY")
+        self.base_url = os.getenv("POE_BASE_URL", "https://api.poe.com/v1")
+
+        if not self.api_key:
+            raise ValueError("POE_API_KEY not set in environment")
+
+        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        self.model = "ElevenLabs-v3"
+        self.voice = voice  # "female" or "male" — ElevenLabs has Vietnamese voices
+        logger.info(f"PoeElevenLabsTTS initialized: voice={voice}")
+
+    async def generate(
+        self,
+        text: str,
+        output_path: str,
+        subtitle_path: Optional[str] = None,
+    ) -> "TTSResult":
+        """Generate audio from Vietnamese text using Poe's ElevenLabs API."""
+        output = Path(output_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"Generating TTS audio via Poe ElevenLabs: {len(text)} chars")
+
+        try:
+            response = self.client.audio.speech.create(
+                model=self.model,
+                voice=self.voice,
+                input=text,
+            )
+
+            # Write audio to file
+            with open(output, "wb") as f:
+                f.write(response.content)
+
+            # Get duration
+            duration = await self._get_duration(str(output))
+            logger.info(f"Audio saved: {output} ({duration:.1f}s)")
+
+            return TTSResult(
+                audio_path=str(output),
+                subtitle_path=subtitle_path,
+                duration_seconds=duration,
+                voice_id=self.voice,
+                text_length=len(text),
+            )
+        except Exception as e:
+            logger.error(f"Poe TTS failed: {e}")
+            raise
+
+    async def _get_duration(self, audio_path: str) -> float:
+        """Get audio duration using ffprobe."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "ffprobe", "-v", "quiet", "-show_entries",
+                "format=duration", "-of", "json", audio_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await proc.communicate()
+            data = json.loads(stdout)
+            return float(data["format"]["duration"])
+        except (KeyError, json.JSONDecodeError, FileNotFoundError):
+            logger.warning("ffprobe failed, estimating duration from file size")
+            # Rough estimate for MP3: ~128kbps = 16KB/s
+            file_size = Path(audio_path).stat().st_size
+            return file_size / 16000
+
+    def generate_sync(
+        self,
+        text: str,
+        output_path: str,
+        subtitle_path: Optional[str] = None,
+    ) -> "TTSResult":
+        """Synchronous wrapper for generate()."""
+        return asyncio.run(self.generate(text, output_path, subtitle_path))
+
+
 class VietnameseTTS:
-    """Vietnamese Text-to-Speech using Edge TTS"""
+    """Vietnamese Text-to-Speech using Edge TTS (fallback)"""
 
     def __init__(self, voice: str = DEFAULT_VOICE, rate: str = DEFAULT_RATE):
         self.voice_id = VIETNAMESE_VOICES.get(voice, voice)
@@ -146,6 +239,20 @@ class VietnameseTTS:
 # ============================================================================
 # Script Text Processing
 # ============================================================================
+
+def get_tts_engine() -> VietnameseTTS:
+    """Factory function to get the best available TTS engine.
+
+    Uses Poe ElevenLabs if POE_API_KEY is set, otherwise falls back to Edge TTS.
+    """
+    poe_key = os.getenv("POE_API_KEY")
+    if poe_key:
+        logger.info("Using Poe ElevenLabs TTS")
+        return PoeElevenLabsTTS(voice="female")
+    else:
+        logger.info("Using Edge TTS (fallback)")
+        return VietnameseTTS(voice="male")
+
 
 def clean_script_for_tts(script_text: str) -> str:
     """Clean video script text for TTS — remove visual tags, timestamps, etc."""

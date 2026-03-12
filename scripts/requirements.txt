@@ -4,7 +4,8 @@
 # Core
 python-dotenv>=1.0.0          # Environment variable management
 requests>=2.31.0              # HTTP client
-anthropic>=0.40.0             # Claude API client
+openai>=1.0.0                 # Poe API (OpenAI-compatible endpoint)
+anthropic>=0.40.0             # Claude API client (fallback)
 
 # News fetching
 tavily-python>=0.3.3          # Tavily search API

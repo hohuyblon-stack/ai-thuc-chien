@@ -8,10 +8,19 @@ from datetime import time
 # ============================================================================
 # API KEYS & CREDENTIALS
 # ============================================================================
+# Poe API (unified access to Claude, ElevenLabs, OmniHuman)
+POE_API_KEY = os.getenv("POE_API_KEY", "")
+POE_BASE_URL = os.getenv("POE_BASE_URL", "https://api.poe.com/v1")
+
+# Legacy (fallback support)
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", ANTHROPIC_API_KEY)
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
+REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN", "")
+
+# Facebook
 FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID", "")
 FACEBOOK_ACCESS_TOKEN = os.getenv("FACEBOOK_ACCESS_TOKEN", "")
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 
 # ============================================================================
 # CONTENT PILLAR WEIGHTS
@@ -116,6 +125,14 @@ FACEBOOK_API_VERSION = "v18.0"
 FACEBOOK_GRAPH_URL = f"https://graph.facebook.com/{FACEBOOK_API_VERSION}"
 
 # ============================================================================
+# POE API MODEL NAMES
+# ============================================================================
+POE_SCRIPT_MODEL = "Claude-3.7-Sonnet"      # For script generation
+POE_TTS_MODEL = "ElevenLabs-v3"             # For Vietnamese TTS
+POE_AVATAR_MODEL = "OmniHuman"              # For avatar generation
+POE_AVATAR_MAX_AUDIO_SECONDS = 30           # OmniHuman supports up to 30s audio
+
+# ============================================================================
 # RETRY LOGIC
 # ============================================================================
 MAX_RETRIES = 3
@@ -126,7 +143,7 @@ RETRY_DELAY_SECONDS = 5  # Start with 5s, exponential backoff
 # ============================================================================
 def validate_config() -> bool:
     """Validate that all required config is present."""
-    required_keys = ["FACEBOOK_PAGE_ID", "FACEBOOK_ACCESS_TOKEN", "CLAUDE_API_KEY", "TAVILY_API_KEY"]
+    required_keys = ["POE_API_KEY", "FACEBOOK_PAGE_ID", "FACEBOOK_ACCESS_TOKEN"]
     missing = [key for key in required_keys if not globals()[key]]
 
     if missing:

@@ -34,9 +34,10 @@ load_dotenv(env_path)
 
 # Local imports
 from fb_news_fetcher import NewsFetcher
-from tts_generator import VietnameseTTS, clean_script_for_tts
-from avatar_generator import AvatarGenerator
+from tts_generator import VietnameseTTS, get_tts_engine, clean_script_for_tts
+from avatar_generator import AvatarGenerator, get_avatar_generator
 from video_composer import VideoComposer
+from config import POE_API_KEY, POE_BASE_URL, POE_SCRIPT_MODEL
 
 # ============================================================================
 # Configuration
@@ -77,14 +78,24 @@ logger = setup_logging()
 # ============================================================================
 
 def generate_script(news_summary: str, format_type: str = "long") -> dict:
-    """Generate video script from news using Claude API."""
-    from anthropic import Anthropic
+    """Generate video script from news using Poe Claude API (or fallback to Anthropic)."""
+    poe_key = os.getenv("POE_API_KEY")
 
-    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY or CLAUDE_API_KEY not set")
-
-    client = Anthropic(api_key=api_key)
+    if poe_key:
+        # Use Poe API with OpenAI-compatible client
+        from openai import OpenAI
+        client = OpenAI(api_key=poe_key, base_url=os.getenv("POE_BASE_URL", "https://api.poe.com/v1"))
+        model = "Claude-3.7-Sonnet"
+        logger.info("Using Poe API for script generation")
+    else:
+        # Fallback to Anthropic direct
+        from anthropic import Anthropic
+        api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
+        if not api_key:
+            raise ValueError("POE_API_KEY or ANTHROPIC_API_KEY not set")
+        client = Anthropic(api_key=api_key)
+        model = "claude-sonnet-4-20250514"
+        logger.info("Using Anthropic API for script generation (fallback)")
 
     if format_type == "short":
         duration_guide = "45-60 giây"
@@ -131,13 +142,22 @@ Trả về JSON:
 
 CHỈ trả về JSON, không có text khác."""
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=4000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = response.content[0].text.strip()
+    if isinstance(client, OpenAI):
+        # Poe API (OpenAI-compatible)
+        response = client.chat.completions.create(
+            model=model,
+            max_tokens=4000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.choices[0].message.content.strip()
+    else:
+        # Anthropic API
+        response = client.messages.create(
+            model=model,
+            max_tokens=4000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
 
     # Parse JSON from response (handle markdown code blocks)
     if raw.startswith("```"):
@@ -283,7 +303,8 @@ class DailyPipeline:
         audio_path = str(self.work_dir / "speech.mp3")
         subtitle_path = str(self.work_dir / "subtitles.srt")
 
-        tts = VietnameseTTS(voice="male", rate="+5%")
+        # Use best available TTS engine (Poe > Edge TTS)
+        tts = get_tts_engine()
         clean_text = clean_script_for_tts(script_text)
         result = tts.generate_sync(clean_text, audio_path, subtitle_path)
 
@@ -302,14 +323,26 @@ class DailyPipeline:
             )
 
         avatar_video = str(self.work_dir / "avatar.mp4")
-        generator = AvatarGenerator()
-        result = generator.generate(
-            audio_path=audio_path,
-            image_path=str(AVATAR_IMAGE),
-            output_path=avatar_video,
-            enhancer="gfpgan",
-            preprocess="crop",
-        )
+
+        # Use best available avatar generator (Poe OmniHuman > Replicate SadTalker)
+        generator = get_avatar_generator()
+
+        if hasattr(generator, 'model') and generator.model == "OmniHuman":
+            # Poe OmniHuman generator
+            result = generator.generate(
+                audio_path=audio_path,
+                image_path=str(AVATAR_IMAGE),
+                output_path=avatar_video,
+            )
+        else:
+            # Replicate SadTalker fallback
+            result = generator.generate(
+                audio_path=audio_path,
+                image_path=str(AVATAR_IMAGE),
+                output_path=avatar_video,
+                enhancer="gfpgan",
+                preprocess="crop",
+            )
 
         logger.info(f"Avatar video: {result.video_path} (~${result.cost_estimate:.2f})")
         return avatar_video
